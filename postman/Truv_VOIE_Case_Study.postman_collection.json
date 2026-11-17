@@ -1,0 +1,300 @@
+{
+  "info": {
+    "name": "Truv VOIE: Point-of-Sale Integration (Case Study)",
+    "description": "Income and employment verification (VOIE) embedded in a loan application point-of-sale, using Truv embedded orders. Modeled on the Truv and nCino point-of-sale experience.\n\nOrder of the flow\n1. Create order (server): POST /v1/orders/\n2. Launch Truv Bridge (browser): load bridge.js and call TruvBridge.init\n3. Receive webhooks (server): task-status-updated and order-status-updated\n4. Retrieve results (server): GET /v1/orders/{order_id}/\n\nSetup\n1. Import this collection and the Truv Sandbox environment, then select the environment.\n2. Fill truv_client_id and truv_secret with your SANDBOX keys from the Truv Dashboard, Development, API Keys. Never commit or share the secret.\n3. Run request 1. The test script stores order_id, bridge_token, user_id and share_url.\n4. Open share_url in a browser, choose Truv Payroll Provider and sign in with goodlogin / goodpassword.\n5. Run request 4 to read the results.\n\nBase URL is https://prod.truv.com/v1. Your credentials decide whether you are in sandbox or production.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1. Create order (server-side)",
+      "item": [
+        {
+          "name": "Create income order",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Order created', function () {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "pm.test('Response has the fields the frontend and webhooks need', function () {",
+                  "  pm.expect(body.id).to.be.a('string');",
+                  "  pm.expect(body.bridge_token).to.be.a('string');",
+                  "  pm.expect(body.user_id).to.be.a('string');",
+                  "});",
+                  "pm.environment.set('order_id', body.id);",
+                  "pm.environment.set('bridge_token', body.bridge_token);",
+                  "pm.environment.set('user_id', body.user_id);",
+                  "pm.environment.set('share_url', body.share_url);",
+                  "console.log('Open this URL to complete the sandbox verification: ' + body.share_url);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Access-Client-Id",
+                "value": "{{truv_client_id}}",
+                "type": "text"
+              },
+              {
+                "key": "X-Access-Secret",
+                "value": "{{truv_secret}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"products\": [\n    \"income\"\n  ],\n  \"first_name\": \"Test\",\n  \"last_name\": \"Borrower\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/orders/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "orders",
+                ""
+              ]
+            },
+            "description": "Step 1 of the integration. Runs on the lender's backend, never in the browser, because it uses the API secret.\n\nWhat it does: creates a verification order for one borrower. Truv returns a short-lived bridge_token that the frontend uses to open Truv Bridge.\n\nRequired body fields\n- products: array. Use [\"income\"] for VOIE. Including income also returns employment data. Other options: [\"assets\"], [\"income\",\"assets\"].\n- first_name, last_name: the borrower.\n\nOptional body fields to consider in production\n- email and phone: recommended, used for borrower notifications.\n- notification_settings: for example suppress user notifications or delay the first reminder.\n- employers: pre-populates the company name (and optionally address), which skips the employer search step for the borrower.\n- loan: loan_number or application_number, plus originator and processor details.\n- external_user_id and order_number: your own identifiers, handy for matching records.\n- ssn: last 4 or full 9 digits.\n- template_id: Truv Dashboard template for branding and notifications.\n\nFields to store from the response\n- bridge_token (top level): pass to TruvBridge.init. Do not use the employers[].bridge_token.\n- id: the order ID. Used to retrieve results.\n- user_id: arrives on every webhook. Use it to match events to your application.\n- share_url / short_share_url: a hosted page for the same order, useful for no-code testing.\n\nOrders expire after about 3 days (see expired_at). Create a fresh order per borrower session.\n\nThe test script on this request saves order_id, bridge_token, user_id and share_url into the environment for the next requests."
+          },
+          "response": [
+            {
+              "name": "Order created (sandbox, values redacted)",
+              "originalRequest": {
+                "method": "POST",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"products\": [\n    \"income\"\n  ],\n  \"first_name\": \"Test\",\n  \"last_name\": \"Borrower\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/orders/",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "orders",
+                    ""
+                  ]
+                }
+              },
+              "status": "Created",
+              "code": 201,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"id\": \"a1b2c3d4e5f60718293a4b5c6d7e8f90\",\n  \"order_number\": null,\n  \"loan_number\": null,\n  \"verification_type\": \"income\",\n  \"products\": [\n    \"income\"\n  ],\n  \"source\": \"internal\",\n  \"company_name\": \"your prospective employer\",\n  \"client_name\": \"Independent (Truv case study)\",\n  \"first_name\": \"Test\",\n  \"last_name\": \"Borrower\",\n  \"user_id\": \"0123456789abcdef0123456789abcdef\",\n  \"bridge_token\": \"ffeeddccbbaa99887766554433221100\",\n  \"share_url\": \"https://my.truv.com/orders/?bridge_token=ffeeddccbbaa99887766554433221100&order_group_id=a1b2c3d4e5f60718293a4b5c6d7e8f90\",\n  \"created_at\": \"2026-11-16T23:13:15.136849Z\",\n  \"updated_at\": \"2026-11-16T23:13:15.136860Z\",\n  \"expired_at\": \"2026-11-19T23:13:15.151710Z\",\n  \"canceled_at\": null,\n  \"completed_at\": null,\n  \"user_consent_at\": null,\n  \"employers\": [\n    {\n      \"id\": \"11112222333344445555666677778888\",\n      \"product_type\": \"income\",\n      \"status\": \"pending\",\n      \"bridge_token\": \"99998888777766665555444433332222\",\n      \"link_id\": null,\n      \"pdf_report\": null,\n      \"data_source\": null,\n      \"provider\": null,\n      \"last_task_status\": null,\n      \"employments\": null\n    }\n  ],\n  \"is_expired\": false,\n  \"voie_report_id\": null,\n  \"template_id\": null,\n  \"short_share_url\": \"https://truv.com/s/XXXXXXXX\"\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2. Launch Truv Bridge (browser, no API call)",
+      "description": "Step 2 of the integration. This step runs in the borrower's browser, so there is no API request to send here.\n\n1. Allow Truv in your Content Security Policy. A missing policy is a common reason the widget does not load.\n   - script-src: cdn.truv.com\n   - frame-src: my.truv.com, cdn.truv.com, prod.truv.com\n2. Load the script: https://cdn.truv.com/bridge.js\n3. Pass the bridge_token from step 1 (your backend hands it to the page):\n\n   const bridge = TruvBridge.init({\n     bridgeToken: BRIDGE_TOKEN,\n     isOrder: true,\n     onLoad: () => {},\n     onSuccess: () => {},\n     onClose: () => {},\n     onEvent: (type, payload, source) => {\n       if (type === 'COMPLETED' && source === 'order') { /* advance the application */ }\n     }\n   });\n   bridge.open();\n\n4. Advance the borrower only when onEvent reports COMPLETED from the order source. Do not advance on onSuccess or onClose, because connections can still be pending at that point.\n5. The widget opens as a centered dialog by default. Inline embedding is described on Truv's Display Modes page.\n\nSandbox login in Bridge: search for Truv Payroll Provider, then use goodlogin / goodpassword (full-time current employment). Other sandbox usernames cover hourly part-time (hourly.part-time) and multiple employers (multiple.employments), both with goodpassword.",
+      "item": []
+    },
+    {
+      "name": "3. Receive webhooks (your endpoint)",
+      "description": "Step 3 of the integration. Your backend exposes an HTTPS endpoint that Truv calls. These two requests send sample events to your own endpoint so you can test it. They do NOT call Truv.\n\nSet up\n- Register the endpoint in the Truv Dashboard under Development, then Webhooks. For local work, expose your app with ngrok and use that URL. Put the same URL in the webhook_url environment variable.\n\nEvents to handle for the VOIE flow\n- task-status-updated: fires as each connection progresses. Key fields: task_id, status (for example done), product, data_source, user_id, link_id.\n- order-status-updated: fires when the borrower finishes. Key fields: order_id, order_number, employer_id, status (for example completed), user_id.\n- Also available if needed: order-created, order-refresh-failed, order-finalized, order-batch-completed, certification-completed.\n\nVerify every request\n- Header X-WEBHOOK-SIGN. HMAC-SHA256 of the RAW request body, keyed with your Access Secret (not the client ID), prefixed with v1=. Compare to the header. Verify against the raw bytes, not re-serialized JSON.\n\nDelivery rules\n- Return a 2xx within 10 seconds. Failures are retried up to 3 times, 30 seconds apart. An endpoint that fails for days can be disabled and missed events are not replayed, so re-enable it and reconcile by calling Get order.\n- Respond fast and do the real work asynchronously.\n- Match events to your application with user_id.\n\nThe sample payloads below follow Truv's documented field names. Treat values as illustrative.",
+      "item": [
+        {
+          "name": "Test your endpoint: order-status-updated",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Signs the body the way Truv signs webhooks so your endpoint's verification can be tested locally.",
+                  "// Assumption: HMAC-SHA256 of the raw body, hex digest, prefixed with v1=, keyed with your access secret.",
+                  "const secret = pm.environment.get('truv_secret');",
+                  "const raw = pm.variables.replaceIn(pm.request.body.raw);",
+                  "const sig = 'v1=' + CryptoJS.HmacSHA256(raw, secret).toString(CryptoJS.enc.Hex);",
+                  "pm.request.headers.upsert({ key: 'X-WEBHOOK-SIGN', value: sig });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"webhook_id\": \"{{$guid}}\",\n  \"event_type\": \"order-status-updated\",\n  \"event_created_at\": \"{{$isoTimestamp}}\",\n  \"user_id\": \"{{user_id}}\",\n  \"order_id\": \"{{order_id}}\",\n  \"order_number\": null,\n  \"template_id\": null,\n  \"updated_at\": \"{{$isoTimestamp}}\",\n  \"status\": \"completed\",\n  \"employer_id\": \"{{employer_id}}\",\n  \"link_id\": \"sample_link_id\",\n  \"product\": \"income\",\n  \"data_source\": \"payroll\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{webhook_url}}",
+              "host": [
+                "{{webhook_url}}"
+              ]
+            },
+            "description": "Sends a sample order-status-updated event to {{webhook_url}} with an X-WEBHOOK-SIGN header computed from your secret. Use it to confirm your receiver verifies the signature and returns 2xx quickly."
+          },
+          "response": []
+        },
+        {
+          "name": "Test your endpoint: task-status-updated",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Signs the body the way Truv signs webhooks so your endpoint's verification can be tested locally.",
+                  "// Assumption: HMAC-SHA256 of the raw body, hex digest, prefixed with v1=, keyed with your access secret.",
+                  "const secret = pm.environment.get('truv_secret');",
+                  "const raw = pm.variables.replaceIn(pm.request.body.raw);",
+                  "const sig = 'v1=' + CryptoJS.HmacSHA256(raw, secret).toString(CryptoJS.enc.Hex);",
+                  "pm.request.headers.upsert({ key: 'X-WEBHOOK-SIGN', value: sig });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"webhook_id\": \"{{$guid}}\",\n  \"event_type\": \"task-status-updated\",\n  \"event_created_at\": \"{{$isoTimestamp}}\",\n  \"user_id\": \"{{user_id}}\",\n  \"task_id\": \"sample_task_id\",\n  \"status\": \"done\",\n  \"product\": \"income\",\n  \"data_source\": \"payroll\",\n  \"link_id\": \"sample_link_id\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{webhook_url}}",
+              "host": [
+                "{{webhook_url}}"
+              ]
+            },
+            "description": "Sends a sample task-status-updated event to {{webhook_url}} with a computed X-WEBHOOK-SIGN header."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "4. Retrieve results (server-side)",
+      "item": [
+        {
+          "name": "Get order",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Order retrieved', function () {",
+                  "  pm.expect(pm.response.code).to.eql(200);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "const emp = (body.employers || [])[0] || {};",
+                  "console.log('Employer status: ' + emp.status + ', completed_at: ' + body.completed_at);",
+                  "if (emp.id) { pm.environment.set('employer_id', emp.id); }",
+                  "if (body.voie_report_id) { pm.environment.set('voie_report_id', body.voie_report_id); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Access-Client-Id",
+                "value": "{{truv_client_id}}",
+                "type": "text"
+              },
+              {
+                "key": "X-Access-Secret",
+                "value": "{{truv_secret}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/orders/{{order_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "orders",
+                "{{order_id}}",
+                ""
+              ]
+            },
+            "description": "Step 4 of the integration. Runs on the lender's backend after the order-status-updated webhook reports completion.\n\nWhat it does: returns the order with employer data, employment history, income statements and report IDs.\n\nHow to use it\n- Call it when the webhook says the order has completed, not on a timer.\n- The status of each entry in employers[] shows progress. Before the borrower finishes Bridge, results are empty (null).\n- After a successful verification, employers[] carries the link, provider, employments and the report IDs. Report IDs such as voie_report_id come from this response.\n- Map the fields into the loan origination system and store the report ID for audit.\n\nSandbox test: open share_url from the Create order response, choose Truv Payroll Provider, sign in with goodlogin / goodpassword, then send this request again.\n\nSaved example below shows an order that has been created but not completed. Add a completed example from your own sandbox run."
+          },
+          "response": [
+            {
+              "name": "Order created, Bridge not completed yet (sandbox, values redacted)",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/orders/{{order_id}}/",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "orders",
+                    "{{order_id}}",
+                    ""
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"id\": \"a1b2c3d4e5f60718293a4b5c6d7e8f90\",\n  \"order_number\": null,\n  \"loan_number\": null,\n  \"verification_type\": \"income\",\n  \"products\": [\n    \"income\"\n  ],\n  \"source\": \"internal\",\n  \"company_name\": \"your prospective employer\",\n  \"client_name\": \"Independent (Truv case study)\",\n  \"first_name\": \"Test\",\n  \"last_name\": \"Borrower\",\n  \"user_id\": \"0123456789abcdef0123456789abcdef\",\n  \"bridge_token\": \"ffeeddccbbaa99887766554433221100\",\n  \"share_url\": \"https://my.truv.com/orders/?bridge_token=ffeeddccbbaa99887766554433221100&order_group_id=a1b2c3d4e5f60718293a4b5c6d7e8f90\",\n  \"created_at\": \"2026-11-16T23:13:15.136849Z\",\n  \"updated_at\": \"2026-11-16T23:13:15.136860Z\",\n  \"expired_at\": \"2026-11-19T23:13:15.151710Z\",\n  \"canceled_at\": null,\n  \"completed_at\": null,\n  \"user_consent_at\": null,\n  \"employers\": [\n    {\n      \"id\": \"11112222333344445555666677778888\",\n      \"product_type\": \"income\",\n      \"status\": \"sent\",\n      \"bridge_token\": \"99998888777766665555444433332222\",\n      \"link_id\": null,\n      \"pdf_report\": null,\n      \"data_source\": null,\n      \"provider\": null,\n      \"last_task_status\": null,\n      \"employments\": null\n    }\n  ],\n  \"is_expired\": false,\n  \"voie_report_id\": null,\n  \"template_id\": null,\n  \"short_share_url\": \"https://truv.com/s/XXXXXXXX\"\n}"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

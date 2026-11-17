@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}Review Your Application{% endblock %}
+{% block content %}
+<div class="container page with-panel">
+  <div class="main-col">
+    {% set step = 3 %}{% include "_stepper.html" %}
+
+    {% if error %}
+      <div class="card">
+        <div class="alert alert-error" role="alert">{{ error }}</div>
+        <a class="btn btn-outline" href="{{ url_for('review', order_id=appl.order_id) }}">Try again</a>
+      </div>
+    {% elif not summary.verified %}
+      <div class="card" id="processing" data-reload="1">
+        <h1>Finishing your verification</h1>
+        <p class="lead-sm">Your payroll connection worked. We are receiving your income details now. This page refreshes on its own.</p>
+        <div class="spinner" aria-hidden="true"></div>
+        <p class="small muted center">Employer status: {{ summary.employer_status | join(", ") or "pending" }}</p>
+        <p class="center"><a href="{{ url_for('verify', order_id=appl.order_id) }}">Go back to income verification</a></p>
+      </div>
+    {% else %}
+      <div class="card">
+        <div class="verified-badge">&#10003; Income verified</div>
+        <h1>Review your application</h1>
+        <p class="lead-sm">We received the details below directly from your employer's payroll. Please confirm they look right before you submit.</p>
+
+        <h2 class="section-title">Your loan request</h2>
+        <dl class="summary-grid">
+          <div><dt>Applicant</dt><dd>{{ appl.applicant.first_name }} {{ appl.applicant.last_name }}</dd></div>
+          <div><dt>Email</dt><dd>{{ appl.applicant.email }}</dd></div>
+          <div><dt>Amount</dt><dd>${{ "{:,}".format(appl.loan.amount) }}</dd></div>
+          <div><dt>Term</dt><dd>{{ appl.loan.term }} months</dd></div>
+          <div><dt>Purpose</dt><dd>{{ appl.loan.purpose }}</dd></div>
+        </dl>
+
+        {% for emp in summary.employments %}
+        <h2 class="section-title">Verified employment{% if summary.employments|length > 1 %} {{ loop.index }}{% endif %}</h2>
+        <div class="employer-card">
+          <div class="employer-head">
+            <div>
+              <p class="employer-name">{{ emp.company }}</p>
+              <p class="muted">{{ emp.job_title or "Job title not reported" }}{% if emp.job_type %} &middot; {{ emp.job_type | pretty }}{% endif %}</p>
+            </div>
+            <span class="pill {% if emp.is_active %}pill-green{% else %}pill-gray{% endif %}">{% if emp.is_active %}Currently employed{% elif emp.is_active is none %}Status not reported{% else %}Former employer{% endif %}</span>
+          </div>
+          <dl class="summary-grid">
+            <div><dt>Start date</dt><dd>{{ emp.start_date or "Not reported" }}</dd></div>
+            {% if emp.end_date %}<div><dt>End date</dt><dd>{{ emp.end_date }}</dd></div>{% endif %}
+            <div><dt>Income</dt><dd>{{ emp.income | money }}{% if emp.income is not none and emp.income_unit %} / {{ emp.income_unit | pretty | lower }}{% endif %}</dd></div>
+            <div><dt>Pay frequency</dt><dd>{{ emp.pay_frequency | pretty }}</dd></div>
+            {% if emp.pay_rate is not none %}<div><dt>Pay rate</dt><dd>{{ emp.pay_rate | money }}</dd></div>{% endif %}
+          </dl>
+
+          {% if emp.annual %}
+          <h3 class="table-title">Annual gross income</h3>
+          <table class="data-table">
+            <thead><tr><th>Year</th><th class="num">Gross pay</th></tr></thead>
+            <tbody>
+              {% for a in emp.annual %}<tr><td>{{ a.year }}</td><td class="num">{{ a.gross_pay | money }}</td></tr>{% endfor %}
+            </tbody>
+          </table>
+          {% endif %}
+
+          {% if emp.statements %}
+          <h3 class="table-title">Recent paystubs</h3>
+          <table class="data-table">
+            <thead><tr><th>Pay date</th><th>Pay period</th><th class="num">Gross</th><th class="num">Net</th></tr></thead>
+            <tbody>
+              {% for s in emp.statements %}
+              <tr>
+                <td>{{ s.pay_date or "" }}</td>
+                <td>{{ s.period_start or "" }}{% if s.period_end %} to {{ s.period_end }}{% endif %}</td>
+                <td class="num">{{ s.gross_pay | money }}</td>
+                <td class="num">{{ s.net_pay | money }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% endif %}
+        </div>
+        {% endfor %}
+
+        {% if summary.pdf_reports %}
+        <p>{% for url in summary.pdf_reports %}<a href="{{ url }}" target="_blank" rel="noopener">View verification report (PDF)</a>{% endfor %}</p>
+        {% endif %}
+
+        <form method="post" action="{{ url_for('submit', order_id=appl.order_id) }}">
+          <label class="checkbox"><input type="checkbox" required> I confirm the information above is accurate.</label>
+          <button class="btn btn-primary btn-lg btn-block" type="submit">Submit application</button>
+        </form>
+
+        <details class="raw">
+          <summary>Raw order response (GET /v1/orders/{id}/)</summary>
+          <pre>{{ order | tojson(indent=2) }}</pre>
+        </details>
+      </div>
+    {% endif %}
+  </div>
+  {% include "_dev_panel.html" %}
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='review.js') }}"></script>
+<script src="{{ url_for('static', filename='dev_panel.js') }}"></script>
+{% endblock %}

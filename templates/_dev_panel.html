@@ -1,0 +1,15 @@
+<aside class="dev-panel" id="dev-panel" data-timeline-url="{{ url_for('timeline', order_id=appl.order_id) }}" aria-label="Integration details">
+  <div class="dev-head">
+    <span class="dev-title">Behind the scenes</span>
+    <button type="button" class="dev-toggle" id="dev-toggle" aria-expanded="true">Hide</button>
+  </div>
+  <div class="dev-body" id="dev-body">
+    <dl class="dev-ids">
+      <dt>order_id</dt><dd><code>{{ appl.order_id }}</code></dd>
+      <dt>user_id</dt><dd><code>{{ appl.user_id }}</code></dd>
+      <dt>Order status (webhook)</dt><dd id="dev-order-status">waiting</dd>
+    </dl>
+    <ol class="dev-timeline" id="dev-timeline"><li class="muted">Loading...</li></ol>
+    <p class="dev-note">Shows server API calls, Bridge events reported by the browser, and verified webhooks matched by user_id. Not part of the borrower experience.</p>
+  </div>
+</aside>

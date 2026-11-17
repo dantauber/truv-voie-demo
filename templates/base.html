@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Personal Loans{% endblock %} | {{ bank_name }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+  {% block head %}{% endblock %}
+</head>
+<body>
+  <div class="demo-banner">Demo site for a Truv integration case study. {{ bank_name }} is a fictional bank.</div>
+  <header class="site-header">
+    <div class="container header-inner">
+      <a class="logo" href="{{ url_for('home') }}">
+        <span class="logo-mark" aria-hidden="true">
+          <svg viewBox="0 0 32 32" width="28" height="28"><path d="M16 3 4 10v2h24v-2L16 3zM6 14h3v10H6zm8.5 0h3v10h-3zM23 14h3v10h-3zM4 26h24v3H4z" fill="currentColor"/></svg>
+        </span>
+        {{ bank_name }}
+      </a>
+      <nav class="main-nav" aria-label="Main">
+        <a href="{{ url_for('home') }}">Checking</a>
+        <a href="{{ url_for('home') }}">Savings</a>
+        <a href="{{ url_for('home') }}">Credit Cards</a>
+        <a href="{{ url_for('home') }}" class="active">Loans</a>
+      </nav>
+      <a class="btn btn-outline btn-sm" href="{{ url_for('home') }}">Sign in</a>
+    </div>
+  </header>
+
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-inner">
+      <div>
+        <strong>{{ bank_name }}</strong>
+        <p>Fictional bank built to demonstrate Truv income and employment verification. No real loans are offered.</p>
+      </div>
+      <div class="footer-links">
+        <a href="{{ url_for('home') }}">Privacy</a>
+        <a href="{{ url_for('home') }}">Security</a>
+        <a href="{{ url_for('home') }}">Accessibility</a>
+        <a href="{{ url_for('home') }}">Contact us</a>
+      </div>
+    </div>
+    <div class="container footer-legal">&copy; {{ year }} {{ bank_name }} (demo). Income verification powered by Truv.</div>
+  </footer>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

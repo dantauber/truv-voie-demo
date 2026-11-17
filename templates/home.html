@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Personal Loans{% endblock %}
+{% block content %}
+<section class="hero">
+  <div class="container hero-inner">
+    <div>
+      <p class="eyebrow">Personal Loans</p>
+      <h1>Borrow $1,000 to $50,000 with a decision in minutes</h1>
+      <p class="lead">Fixed rates, no origination fee, and no paystubs to upload. Verify your income securely in about a minute by connecting your employer or payroll account.</p>
+      <div class="hero-actions">
+        <a class="btn btn-primary btn-lg" href="{{ url_for('apply_form') }}">Check your rate</a>
+        <span class="muted">Checking your rate will not affect your credit score.</span>
+      </div>
+    </div>
+    <div class="rate-card" aria-label="Rate example">
+      <p class="rate-label">Fixed APR as low as</p>
+      <p class="rate">8.49%</p>
+      <p class="muted small">With autopay. Terms of 24 to 60 months. Example rate for illustration only.</p>
+      <ul class="checklist">
+        <li>Funds as soon as the next business day</li>
+        <li>No prepayment penalty</li>
+        <li>Instant income verification</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section class="container steps-section">
+  <h2>How it works</h2>
+  <div class="steps-grid">
+    <div class="step-card">
+      <span class="step-num">1</span>
+      <h3>Tell us about you</h3>
+      <p>Your name, contact details and how much you would like to borrow.</p>
+    </div>
+    <div class="step-card">
+      <span class="step-num">2</span>
+      <h3>Verify your income</h3>
+      <p>Connect your employer or payroll provider. We receive your income and employment directly, so there is nothing to upload.</p>
+    </div>
+    <div class="step-card">
+      <span class="step-num">3</span>
+      <h3>Review and submit</h3>
+      <p>Confirm your verified details and send your application for a decision.</p>
+    </div>
+  </div>
+</section>
+{% endblock %}

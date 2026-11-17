@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Application Submitted{% endblock %}
+{% block content %}
+<div class="container narrow page">
+  <div class="card center">
+    <div class="success-icon" aria-hidden="true">&#10003;</div>
+    <h1>Thanks, {{ appl.applicant.first_name }}. Your application is in.</h1>
+    <p class="lead-sm">Because your income is already verified, most applications get a decision within one business day. We will email {{ appl.applicant.email }} with next steps.</p>
+    <dl class="summary-grid left">
+      <div><dt>Reference number</dt><dd><code>{{ appl.order_id[:10] | upper }}</code></dd></div>
+      <div><dt>Amount requested</dt><dd>${{ "{:,}".format(appl.loan.amount) }}</dd></div>
+      <div><dt>Term</dt><dd>{{ appl.loan.term }} months</dd></div>
+    </dl>
+    <a class="btn btn-outline" href="{{ url_for('home') }}">Back to home</a>
+  </div>
+</div>
+{% endblock %}

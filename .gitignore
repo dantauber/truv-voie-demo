@@ -1,0 +1,19 @@
+# Secrets
+.env*
+!.env.example
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# OS
+.DS_Store
+
+# Local notes
+CLAUDE.md
+
+# App runtime data
+data/
+samples/

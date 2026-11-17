@@ -1,0 +1,8 @@
+<ol class="stepper" aria-label="Application progress">
+  {% for label in ["About you", "Verify income", "Review and submit"] %}
+  <li class="{% if loop.index < step %}done{% elif loop.index == step %}current{% endif %}"{% if loop.index == step %} aria-current="step"{% endif %}>
+    <span class="dot">{% if loop.index < step %}&#10003;{% else %}{{ loop.index }}{% endif %}</span>
+    <span class="label">{{ label }}</span>
+  </li>
+  {% endfor %}
+</ol>

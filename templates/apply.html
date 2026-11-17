@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Apply for a Personal Loan{% endblock %}
+{% block content %}
+<div class="container narrow page">
+  {% set step = 1 %}{% include "_stepper.html" %}
+  <div class="card">
+    <h1>Let's get started</h1>
+    <p class="muted">This takes about two minutes. Fields marked * are required.</p>
+
+    {% if error %}<div class="alert alert-error" role="alert">{{ error }}</div>{% endif %}
+
+    <form method="post" action="{{ url_for('apply_submit') }}" class="form" id="apply-form">
+      <fieldset>
+        <legend>Loan details</legend>
+        <div class="row">
+          <label>Loan amount *
+            <div class="input-prefix"><span>$</span>
+              <input name="amount" inputmode="numeric" placeholder="15,000" value="{{ form.amount or '' }}" required>
+            </div>
+          </label>
+          <label>Term *
+            <select name="term" required>
+              {% for t in ["24", "36", "48", "60"] %}
+              <option value="{{ t }}" {% if (form.term or '36') == t %}selected{% endif %}>{{ t }} months</option>
+              {% endfor %}
+            </select>
+          </label>
+        </div>
+        <label>Loan purpose *
+          <select name="purpose" required>
+            <option value="">Select one</option>
+            {% for p in purposes %}
+            <option value="{{ p }}" {% if form.purpose == p %}selected{% endif %}>{{ p }}</option>
+            {% endfor %}
+          </select>
+        </label>
+      </fieldset>
+
+      <fieldset>
+        <legend>About you</legend>
+        <div class="row">
+          <label>First name *
+            <input name="first_name" autocomplete="given-name" value="{{ form.first_name or '' }}" required>
+          </label>
+          <label>Last name *
+            <input name="last_name" autocomplete="family-name" value="{{ form.last_name or '' }}" required>
+          </label>
+        </div>
+        <div class="row">
+          <label>Email *
+            <input name="email" type="email" autocomplete="email" value="{{ form.email or '' }}" required>
+          </label>
+          <label>Mobile phone
+            <input name="phone" type="tel" autocomplete="tel" value="{{ form.phone or '' }}">
+          </label>
+        </div>
+      </fieldset>
+
+      <p class="small muted">By continuing, you agree that {{ bank_name }} may verify your income and employment through our partner Truv.</p>
+      <button class="btn btn-primary btn-lg btn-block" type="submit" id="apply-submit">Continue to income verification</button>
+    </form>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='apply.js') }}"></script>
+{% endblock %}

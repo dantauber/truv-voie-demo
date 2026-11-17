@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: truv-voie-demo
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    # One worker because applications are kept in memory. Threads handle concurrency.
+    startCommand: gunicorn app:app --workers 1 --threads 8 --timeout 60 --bind 0.0.0.0:$PORT
+    healthCheckPath: /health
+    envVars:
+      - key: TRUV_CLIENT_ID
+        sync: false
+      - key: TRUV_SECRET
+        sync: false

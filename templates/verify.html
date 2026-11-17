@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Verify Your Income{% endblock %}
+{% block head %}
+<script src="https://cdn.truv.com/bridge.js"></script>
+{% endblock %}
+{% block content %}
+<div class="container page with-panel">
+  <div class="main-col">
+    {% set step = 2 %}{% include "_stepper.html" %}
+    <div class="card"
+         id="verify-card"
+         data-bridge-token="{{ appl.bridge_token }}"
+         data-event-url="{{ url_for('bridge_event', order_id=appl.order_id) }}"
+         data-review-url="{{ url_for('review', order_id=appl.order_id) }}">
+      <h1>Verify your income, {{ appl.applicant.first_name }}</h1>
+      <p class="lead-sm">Connect the employer or payroll provider that pays you. We receive your income and employment details directly, so you do not need to upload paystubs or W-2s.</p>
+
+      <ul class="benefits">
+        <li><strong>About 1 minute.</strong> Most people finish in a few clicks.</li>
+        <li><strong>Secure.</strong> Your login is encrypted and never shared with {{ bank_name }}.</li>
+        <li><strong>Read only.</strong> We can view income details but cannot change anything.</li>
+      </ul>
+
+      <div id="verify-status" class="alert alert-info hidden" role="status" aria-live="polite"></div>
+
+      <button class="btn btn-primary btn-lg btn-block" id="open-bridge" type="button" disabled>Loading secure connection...</button>
+      <p class="small muted center">Income verification is provided by Truv.</p>
+    </div>
+  </div>
+  {% include "_dev_panel.html" %}
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='verify.js') }}"></script>
+<script src="{{ url_for('static', filename='dev_panel.js') }}"></script>
+{% endblock %}
