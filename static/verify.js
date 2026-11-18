@@ -33,10 +33,10 @@
   var bridge = window.TruvBridge.init({
     bridgeToken: bridgeToken,
     isOrder: true,
-    onLoad: function () {
-      button.disabled = false;
-      button.textContent = "Connect my employer";
-    },
+    // With isOrder, Bridge creates its iframe only when open() is called, so onLoad
+    // fires after the borrower clicks. Do not gate the button on it.
+    // LOAD also reaches onEvent below, which reports it to the timeline.
+    onLoad: function () {},
     onEvent: function (type, payload, source) {
       report(type, source);
       if (type === "COMPLETED" && source === "order" && !completed) {
@@ -60,6 +60,10 @@
       }
     }
   });
+
+  // bridge.js loaded and init succeeded, so the borrower can start.
+  button.disabled = false;
+  button.textContent = "Connect my employer";
 
   button.addEventListener("click", function () {
     statusBox.className = "alert hidden";
