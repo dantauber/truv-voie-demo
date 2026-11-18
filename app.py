@@ -112,7 +112,16 @@ def _truv_headers():
 
 
 def truv_create_order(first_name, last_name, email=None):
-    payload = {"products": ["income"], "first_name": first_name, "last_name": last_name}
+    payload = {
+        "products": ["income"],
+        "first_name": first_name,
+        "last_name": last_name,
+        # The borrower verifies inside the bank's app (embedded order), so Truv should not
+        # email or text them a link. Without this, an undeliverable address puts the order
+        # in "error" status. In production a bank could instead set
+        # first_notification_delay_hours to remind borrowers who leave Bridge unfinished.
+        "notification_settings": {"suppress_user_notifications": True},
+    }
     if email:
         payload["email"] = email
     resp = requests.post(f"{TRUV_BASE_URL}/orders/", json=payload, headers=_truv_headers(), timeout=20)
