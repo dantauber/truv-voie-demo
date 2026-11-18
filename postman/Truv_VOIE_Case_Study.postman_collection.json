@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Truv VOIE: Point-of-Sale Integration (Case Study)",
-    "description": "Income and employment verification (VOIE) embedded in a loan application point-of-sale, using Truv embedded orders. Modeled on the Truv and nCino point-of-sale experience. Written for the bank's developers: every request notes what it does, which fields to store and how they are used. Examples are real sandbox responses, with long arrays cut to 2 items and presigned URLs redacted.\n\nFlow\n0. One-time setup (server): POST /v1/webhooks/ to register your endpoint, GET /v1/webhooks/ to check it.\n1. Employer search, optional (server): GET /v1/company-mappings-search/ to get a company_mapping_id for a deeplink.\n2. Create order (server): POST /v1/orders/. Store id, user_id and bridge_token.\n3. Launch Truv Bridge (browser, no API call): bridge.js with isOrder: true. Advance on onEvent COMPLETED from source order.\n4. Receive webhooks (your endpoint): task-status-updated, order-status-updated, order-finalized. Verify X-WEBHOOK-SIGN.\n5. Get order (server): GET /v1/orders/{order_id}/. Store voie_report_id.\n6. VOIE report (server): GET /v1/users/{user_id}/reports/{report_id}/ as JSON or PDF. Optional POST /v1/users/{user_id}/reports/ for a fresh report.\n\nSetup\n1. Import this collection and the Truv Sandbox environment, then select the environment.\n2. Fill truv_client_id and truv_secret with your SANDBOX keys from the Truv Dashboard (Development, API Keys). Never commit or share the secret.\n3. Set webhook_url to your endpoint. Run folder 0 once.\n4. Run folders 1 and 2. The test scripts store company_mapping_id, order_id, bridge_token, user_id and share_url.\n5. Open share_url in a browser (or your own frontend with Bridge). Pick any sandbox payroll provider, for example ADP or Truv Payroll Provider, sign in with goodlogin / goodpassword, and enter 12345 if asked for an MFA code.\n6. Watch the webhooks arrive at your endpoint, then run folders 5 and 6.\n\nWebhook delivery: Truv expects a 2xx within 10 seconds and retries a failed delivery 3 times, 30 seconds apart.\n\nBase URL is https://prod.truv.com/v1 for both sandbox and production. Your credentials decide which one you are in. Orders expire after a few days (see expired_at), so create a fresh order per borrower session.",
+    "description": "Income and employment verification (VOIE) embedded in a loan application point-of-sale, using Truv embedded orders. Modeled on the Truv and nCino point-of-sale experience. Written for the bank's developers: every request notes what it does, which fields to store and how they are used. Examples are real sandbox responses, with long arrays cut to 2 items and presigned URLs redacted.\n\nFlow\n0. One-time setup (server): POST /v1/webhooks/ to register your endpoint, GET /v1/webhooks/ to check it.\n1. Employer search, optional (server): GET /v1/company-mappings-search/ to get a company_mapping_id for a deeplink.\n2. Create order (server): POST /v1/orders/. Store id, user_id and bridge_token.\n3. Launch Truv Bridge (browser, no API call): bridge.js with isOrder: true. Advance on onEvent COMPLETED from source order.\n4. Receive webhooks (your endpoint): task-status-updated, order-status-updated, order-finalized. Verify X-WEBHOOK-SIGN.\n5. Get order (server): GET /v1/orders/{order_id}/. Store voie_report_id.\n6. VOIE report (server): GET /v1/users/{user_id}/reports/{report_id}/ as JSON or PDF. Optional POST /v1/users/{user_id}/reports/ for a fresh report.\n7. Order lifecycle (server-side): GET /v1/orders/{order_id}/events/ for an audit trail, POST /v1/orders/{order_id}/ for a data refresh, POST /v1/orders/{order_id}/cancel/, GET /v1/orders/ to list and search.\n\nErrors: Create order and Get order include real 400, 401, 403 and 404 examples. Folder 0 also has Delete webhook endpoint for cleanup.\n\nSetup\n1. Import this collection and the Truv Sandbox environment, then select the environment.\n2. Fill truv_client_id and truv_secret with your SANDBOX keys from the Truv Dashboard (Development, API Keys). Never commit or share the secret.\n3. Set webhook_url to your endpoint. Run folder 0 once.\n4. Run folders 1 and 2. The test scripts store company_mapping_id, order_id, bridge_token, user_id and share_url.\n5. Open share_url in a browser (or your own frontend with Bridge). Pick any sandbox payroll provider, for example ADP or Truv Payroll Provider, sign in with goodlogin / goodpassword, and enter 12345 if asked for an MFA code.\n6. Watch the webhooks arrive at your endpoint, then run folders 5 and 6.\n\nWebhook delivery: Truv expects a 2xx within 10 seconds and retries a failed delivery 3 times, 30 seconds apart.\n\nBase URL is https://prod.truv.com/v1 for both sandbox and production. Your credentials decide which one you are in. Orders expire after a few days (see expired_at), so create a fresh order per borrower session.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
@@ -83,6 +83,21 @@
               ],
               "body": "{\n  \"id\": \"19d759b8688b40dcadec9845a42f5ba6\",\n  \"name\": \"Cedar & Stone POS (Render)\",\n  \"webhook_url\": \"https://truv-voie-demo.onrender.com/webhooks/truv\",\n  \"events\": [\n    \"task-status-updated\",\n    \"order-status-updated\",\n    \"order-finalized\"\n  ],\n  \"env_type\": \"sandbox\",\n  \"enabled\": true,\n  \"created_at\": \"2026-11-17T23:46:12.231972Z\",\n  \"updated_at\": \"2026-11-17T23:46:12.231981Z\"\n}"
             }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Webhook registered', function () {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([201]);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "if (body.id) { pm.environment.set('webhook_id', body.id); }"
+                ]
+              }
+            }
           ]
         },
         {
@@ -140,6 +155,94 @@
                 }
               ],
               "body": "{\n  \"count\": 1,\n  \"next\": null,\n  \"previous\": null,\n  \"results\": [\n    {\n      \"id\": \"19d759b8688b40dcadec9845a42f5ba6\",\n      \"name\": \"Cedar &amp; Stone POS (Render)\",\n      \"webhook_url\": \"https://truv-voie-demo.onrender.com/webhooks/truv\",\n      \"events\": [\n        \"task-status-updated\",\n        \"order-status-updated\",\n        \"order-finalized\"\n      ],\n      \"env_type\": \"sandbox\",\n      \"enabled\": true,\n      \"created_at\": \"2026-11-17T23:46:12.231972Z\",\n      \"updated_at\": \"2026-11-17T23:46:12.231981Z\"\n    }\n  ]\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Webhooks listed', function () {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});",
+                  "const rows = pm.response.json().results || pm.response.json();",
+                  "const mine = (rows || []).filter(w => w.webhook_url === pm.environment.get('webhook_url'));",
+                  "if (mine.length === 1 && !pm.environment.get('webhook_id')) { pm.environment.set('webhook_id', mine[0].id); }",
+                  "pm.test('Exactly one registration for webhook_url', function () {",
+                  "  pm.expect(mine.length).to.eql(1);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete webhook endpoint",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "X-Access-Client-Id",
+                "value": "{{truv_client_id}}",
+                "type": "text"
+              },
+              {
+                "key": "X-Access-Secret",
+                "value": "{{truv_secret}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/webhooks/{{webhook_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "webhooks",
+                "{{webhook_id}}",
+                ""
+              ]
+            },
+            "description": "What it does: removes a webhook registration. Use it when you retire an endpoint, or to clean up a duplicate registration (each registration delivers its own copy of every event).\n\nPath\n- webhook_id: the id from Register webhook endpoint (stored as {{webhook_id}}), or from List webhooks.\n\nResponse: 204 with an empty body.\n\nCareful: running this against the live registration stops all webhooks for the prototype. To change the URL or events, PATCH /v1/webhooks/{id}/ instead."
+          },
+          "response": [
+            {
+              "name": "Webhook deleted (sandbox)",
+              "originalRequest": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/webhooks/{{webhook_id}}/",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "webhooks",
+                    "{{webhook_id}}",
+                    ""
+                  ]
+                }
+              },
+              "status": "No Content",
+              "code": 204,
+              "_postman_previewlanguage": "text",
+              "header": [],
+              "body": ""
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Webhook deleted', function () {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([204]);",
+                  "});",
+                  "pm.environment.unset('webhook_id');"
+                ]
+              }
             }
           ]
         }
@@ -323,7 +426,7 @@
                 ""
               ]
             },
-            "description": "Runs on the bank's backend, never in the browser, because it uses the API secret.\n\nWhat it does: creates a verification order for one borrower. Truv returns a bridge_token that the frontend uses to open Truv Bridge.\n\nBody fields used here (they match the prototype's app.py, plus the optional fields below)\n- products: [\"income\"] for VOIE. Income includes employment data. Other options: [\"assets\"], [\"income\",\"assets\"].\n- first_name, last_name, email: the borrower from the application form.\n- notification_settings.suppress_user_notifications: true. See the note below.\n- external_user_id: your ID for the person (one value per borrower, never shared by a borrower and co-borrower). Lets Truv link that person's orders and supports data refresh.\n- loan.application_number: the POS application number, used before a loan number exists. Use loan.loan_number once the LOS assigns one. Shows in the Truv Dashboard and on reports.\n- employers[].company_mapping_id (optional): from Employer search. Bridge opens on that employer's login. The pre-request script removes employers when company_mapping_id is empty, so this request also works without folder 1.\n\nWhy notifications are suppressed\nThe borrower verifies inside the bank's application (embedded order), so a Truv email or SMS with a second link is not needed. In testing, orders created with an undeliverable email address went to status error because Truv could not deliver its notification. Suppressing notifications avoids that.\n\nAlternative: delayed reminders\nTo nudge borrowers who leave Bridge unfinished, keep notifications on but delay them, for example notification_settings: {\"suppress_user_notifications\": false, \"first_notification_delay_hours\": 6}. Or create the order suppressed and send PATCH /v1/orders/{id}/ with suppress_user_notifications: false when the borrower closes Bridge without finishing. Truv then sends up to 3 reminders before the order expires. This needs a valid email or phone.\n\nOther optional fields: phone, ssn (last 4 or 9 digits, improves matching), order_number, template_id (branding), loan originator and processor details.\n\nFields to store from the response, keyed to the loan application\n- bridge_token (top level): pass to TruvBridge.init in the browser. Do not use employers[].bridge_token.\n- id: the order ID. Used for Get order.\n- user_id: arrives on every webhook. Use it to match events to the application. Also used for VOIE report calls.\n- employers[].id: the suborder for each employer. Arrives as employer_id on order-status-updated and as tracking_info on task-status-updated.\n- expired_at: create a new order if the borrower returns after this time.\n\nshare_url and short_share_url open the same order on a Truv-hosted page. Handy for testing without a frontend.\n\nThe test script saves order_id, bridge_token, user_id and share_url to the environment.",
+            "description": "Runs on the bank's backend, never in the browser, because it uses the API secret.\n\nWhat it does: creates a verification order for one borrower. Truv returns a bridge_token that the frontend uses to open Truv Bridge.\n\nBody fields used here (they match the prototype's app.py, plus the optional fields below)\n- products: [\"income\"] for VOIE. Income includes employment data. Other options: [\"assets\"], [\"income\",\"assets\"].\n- first_name, last_name, email: the borrower from the application form.\n- notification_settings.suppress_user_notifications: true. See the note below.\n- external_user_id: your ID for the person (one value per borrower, never shared by a borrower and co-borrower). Lets Truv link that person's orders and supports data refresh.\n- loan.application_number: the POS application number, used before a loan number exists. Use loan.loan_number once the LOS assigns one. Shows in the Truv Dashboard and on reports.\n- employers[].company_mapping_id (optional): from Employer search. Bridge opens on that employer's login. The pre-request script removes employers when company_mapping_id is empty, so this request also works without folder 1.\n\nWhy notifications are suppressed\nThe borrower verifies inside the bank's application (embedded order), so a Truv email or SMS with a second link is not needed. In testing, orders created with an undeliverable email address went to status error because Truv could not deliver its notification. Suppressing notifications avoids that.\n\nAlternative: delayed reminders\nTo nudge borrowers who leave Bridge unfinished, keep notifications on but delay them, for example notification_settings: {\"suppress_user_notifications\": false, \"first_notification_delay_hours\": 6}. Or create the order suppressed and send PATCH /v1/orders/{id}/ with suppress_user_notifications: false when the borrower closes Bridge without finishing. Truv then sends up to 3 reminders before the order expires. This needs a valid email or phone.\n\nOther optional fields: phone, ssn (last 4 or 9 digits, improves matching), order_number, template_id (branding), loan originator and processor details.\n\nFields to store from the response, keyed to the loan application\n- bridge_token (top level): pass to TruvBridge.init in the browser. Do not use employers[].bridge_token.\n- id: the order ID. Used for Get order.\n- user_id: arrives on every webhook. Use it to match events to the application. Also used for VOIE report calls.\n- employers[].id: the suborder for each employer. Arrives as employer_id on order-status-updated and as tracking_info on task-status-updated.\n- expired_at: create a new order if the borrower returns after this time.\n\nshare_url and short_share_url open the same order on a Truv-hosted page. Handy for testing without a frontend.\n\nThe test script saves order_id, bridge_token, user_id and share_url to the environment.\n\nErrors seen in sandbox (saved as examples)\n- 400 incorrect_parameters: a required field is missing. extra.invalid-params lists each field. Show a clear message to the loan officer, do not retry.\n- 401 authentication_failed (\"No such user\"): the client ID is wrong or belongs to another environment.\n- 403 not_authenticated: the client ID is valid but the secret is wrong. Check which key pair the server loaded. Neither 401 nor 403 should be retried.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"products\": [\n    \"income\"\n  ],\n  \"first_name\": \"John\",\n  \"last_name\": \"Doe\",\n  \"email\": \"john.doe@example.com\",\n  \"external_user_id\": \"{{external_user_id}}\",\n  \"loan\": {\n    \"application_number\": \"{{application_number}}\"\n  },\n  \"notification_settings\": {\n    \"suppress_user_notifications\": true\n  },\n  \"employers\": [\n    {\n      \"company_mapping_id\": \"{{company_mapping_id}}\"\n    }\n  ]\n}",
@@ -396,6 +499,99 @@
                 }
               ],
               "body": "{\n  \"id\": \"a1b2c3d4e5f60718293a4b5c6d7e8f90\",\n  \"order_number\": null,\n  \"loan_number\": null,\n  \"verification_type\": \"income\",\n  \"products\": [\n    \"income\"\n  ],\n  \"source\": \"internal\",\n  \"company_name\": \"your prospective employer\",\n  \"client_name\": \"Independent (Truv case study)\",\n  \"first_name\": \"Test\",\n  \"last_name\": \"Borrower\",\n  \"user_id\": \"0123456789abcdef0123456789abcdef\",\n  \"bridge_token\": \"ffeeddccbbaa99887766554433221100\",\n  \"share_url\": \"https://my.truv.com/orders/?bridge_token=ffeeddccbbaa99887766554433221100&order_group_id=a1b2c3d4e5f60718293a4b5c6d7e8f90\",\n  \"created_at\": \"2026-11-16T23:13:15.136849Z\",\n  \"updated_at\": \"2026-11-16T23:13:15.136860Z\",\n  \"expired_at\": \"2026-11-19T23:13:15.151710Z\",\n  \"canceled_at\": null,\n  \"completed_at\": null,\n  \"user_consent_at\": null,\n  \"employers\": [\n    {\n      \"id\": \"11112222333344445555666677778888\",\n      \"product_type\": \"income\",\n      \"status\": \"pending\",\n      \"bridge_token\": \"99998888777766665555444433332222\",\n      \"link_id\": null,\n      \"pdf_report\": null,\n      \"data_source\": null,\n      \"provider\": null,\n      \"last_task_status\": null,\n      \"employments\": null\n    }\n  ],\n  \"is_expired\": false,\n  \"voie_report_id\": null,\n  \"template_id\": null,\n  \"short_share_url\": \"https://truv.com/s/XXXXXXXX\"\n}"
+            },
+            {
+              "name": "400 Missing first_name and last_name (sandbox)",
+              "originalRequest": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/orders/",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "orders",
+                    ""
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"products\": [\"income\"]\n}"
+                }
+              },
+              "status": "Bad Request",
+              "code": 400,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"incorrect_parameters\",\n    \"message\": \"Incorrect request parameters\",\n    \"extra\": {\n      \"invalid-params\": [\n        {\n          \"field\": \"first_name\",\n          \"message\": \"This field is required.\"\n        },\n        {\n          \"field\": \"last_name\",\n          \"message\": \"This field is required.\"\n        }\n      ]\n    }\n  }\n}"
+            },
+            {
+              "name": "401 Unknown client ID (sandbox)",
+              "originalRequest": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/orders/",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "orders",
+                    ""
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"products\": [\n    \"income\"\n  ],\n  \"first_name\": \"John\",\n  \"last_name\": \"Doe\",\n  \"email\": \"john.doe@example.com\",\n  \"external_user_id\": \"{{external_user_id}}\",\n  \"loan\": {\n    \"application_number\": \"{{application_number}}\"\n  },\n  \"notification_settings\": {\n    \"suppress_user_notifications\": true\n  },\n  \"employers\": [\n    {\n      \"company_mapping_id\": \"{{company_mapping_id}}\"\n    }\n  ]\n}"
+                }
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"authentication_failed\",\n    \"message\": \"No such user\"\n  }\n}"
+            },
+            {
+              "name": "403 Wrong secret for the client ID (sandbox)",
+              "originalRequest": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/orders/",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "orders",
+                    ""
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"products\": [\n    \"income\"\n  ],\n  \"first_name\": \"John\",\n  \"last_name\": \"Doe\",\n  \"email\": \"john.doe@example.com\",\n  \"external_user_id\": \"{{external_user_id}}\",\n  \"loan\": {\n    \"application_number\": \"{{application_number}}\"\n  },\n  \"notification_settings\": {\n    \"suppress_user_notifications\": true\n  },\n  \"employers\": [\n    {\n      \"company_mapping_id\": \"{{company_mapping_id}}\"\n    }\n  ]\n}"
+                }
+              },
+              "status": "Forbidden",
+              "code": 403,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"not_authenticated\",\n    \"message\": \"Authentication credentials were not provided.\"\n  }\n}"
             }
           ]
         }
@@ -426,6 +622,17 @@
                   "const secret = pm.environment.get('truv_secret');",
                   "const sig = 'v1=' + CryptoJS.HmacSHA256(raw, secret).toString(CryptoJS.enc.Hex);",
                   "pm.request.headers.upsert({ key: 'X-WEBHOOK-SIGN', value: sig });"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Endpoint accepted the signed webhook', function () {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([200, 201, 202, 204]);",
+                  "});"
                 ]
               }
             }
@@ -523,6 +730,17 @@
                   "pm.request.headers.upsert({ key: 'X-WEBHOOK-SIGN', value: sig });"
                 ]
               }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Endpoint accepted the signed webhook', function () {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([200, 201, 202, 204]);",
+                  "});"
+                ]
+              }
             }
           ],
           "request": {
@@ -616,6 +834,17 @@
                   "const secret = pm.environment.get('truv_secret');",
                   "const sig = 'v1=' + CryptoJS.HmacSHA256(raw, secret).toString(CryptoJS.enc.Hex);",
                   "pm.request.headers.upsert({ key: 'X-WEBHOOK-SIGN', value: sig });"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Endpoint accepted the signed webhook', function () {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([200, 201, 202, 204]);",
+                  "});"
                 ]
               }
             }
@@ -745,7 +974,7 @@
                 ""
               ]
             },
-            "description": "Runs on the bank's backend when the borrower finishes Bridge (onEvent COMPLETED from the order) or when order-status-updated reports completed.\n\nWhat it does: returns the order with each employer's status, provider, employment, income, pay statements, W-2s and report IDs.\n\nHow to use it\n- Before the borrower finishes, employers[].status is pending or sent and employments is null.\n- After a successful verification, employers[].status is completed and completed_at is set.\n- Map employments[] into the loan file: company.name, job_title, is_active, start_date, income and income_unit, pay_frequency, statements[] (gross_pay, net_pay, pay_date), annual_income_summary[], w2s[].\n\nFields to store\n- voie_report_id: the VOIE report for underwriting (folder 6) and for Fannie Mae DU or Freddie Mac LPA (fannie_voie_report_id, freddie_voie_report_id).\n- employers[].id and status: per-employer progress, matches employer_id on webhooks.\n- completed_at: audit trail.\n- employers[].pdf_report and statements[].file are short-lived presigned URLs. Download the files when you need them, do not store the URLs.\n\nThe test script saves employer_id and voie_report_id.\n\nExamples: an order before Bridge is completed, and a completed sandbox order (arrays cut to 2 items, presigned URLs and link access token redacted)."
+            "description": "Runs on the bank's backend when the borrower finishes Bridge (onEvent COMPLETED from the order) or when order-status-updated reports completed.\n\nWhat it does: returns the order with each employer's status, provider, employment, income, pay statements, W-2s and report IDs.\n\nHow to use it\n- Before the borrower finishes, employers[].status is pending or sent and employments is null.\n- After a successful verification, employers[].status is completed and completed_at is set.\n- Map employments[] into the loan file: company.name, job_title, is_active, start_date, income and income_unit, pay_frequency, statements[] (gross_pay, net_pay, pay_date), annual_income_summary[], w2s[].\n\nFields to store\n- voie_report_id: the VOIE report for underwriting (folder 6) and for Fannie Mae DU or Freddie Mac LPA (fannie_voie_report_id, freddie_voie_report_id).\n- employers[].id and status: per-employer progress, matches employer_id on webhooks.\n- completed_at: audit trail.\n- employers[].pdf_report and statements[].file are short-lived presigned URLs. Download the files when you need them, do not store the URLs.\n\nThe test script saves employer_id and voie_report_id.\n\nExamples: an order before Bridge is completed, and a completed sandbox order (arrays cut to 2 items, presigned URLs and link access token redacted).\n\n404 {\"detail\": \"Not found.\"}: no order with this ID for these credentials. Check the ID, and that the server uses the same key pair that created the order. Note the body shape differs from other Truv errors, which use error.code."
           },
           "response": [
             {
@@ -803,6 +1032,34 @@
                 }
               ],
               "body": "{\n  \"id\": \"2fc2e28b72184f8799865e821e0d34fa\",\n  \"order_number\": null,\n  \"loan_number\": null,\n  \"verification_type\": \"income\",\n  \"products\": [\n    \"income\"\n  ],\n  \"source\": \"internal\",\n  \"company_name\": \"your prospective employer\",\n  \"company_address\": null,\n  \"company_domain\": null,\n  \"company_logo\": null,\n  \"custom_field\": null,\n  \"client_name\": \"Independent (Truv case study)\",\n  \"first_name\": \"John\",\n  \"last_name\": \"Doe\",\n  \"user_id\": \"debc96669bda4088994e1f9db7e78bc0\",\n  \"bridge_token\": \"7bb4e108653045dfa7586e8b823cc932\",\n  \"share_url\": \"https://my.truv.com/orders/?bridge_token=7bb4e108653045dfa7586e8b823cc932&order_group_id=2fc2e28b72184f8799865e821e0d34fa\",\n  \"created_at\": \"2026-11-18T16:34:31.277739Z\",\n  \"updated_at\": \"2026-11-18T16:37:30.817152Z\",\n  \"expired_at\": \"2026-11-23T16:34:31.292083Z\",\n  \"canceled_at\": null,\n  \"completed_at\": \"2026-11-18T16:37:00.658398Z\",\n  \"user_consent_at\": null,\n  \"employers\": [\n    {\n      \"id\": \"c35ceedd5b62467d99c3d0ea6371c35b\",\n      \"product_type\": \"income\",\n      \"status\": \"completed\",\n      \"suborder_number\": null,\n      \"created_at\": \"2026-11-18T16:34:31.356883Z\",\n      \"bridge_token\": \"868e4054e53e4891a1f992ba8ee3b363\",\n      \"link_id\": \"453583850cfc4ff492c60090ed3ec12b\",\n      \"access_token\": \"<redacted link access token>\",\n      \"pdf_report\": \"<redacted presigned URL>\",\n      \"data_source\": \"payroll\",\n      \"provider\": {\n        \"logo_url\": \"https://d1uvo9h6rsmxet.cloudfront.net/provider_logos/adp.svg\",\n        \"id\": \"adp\",\n        \"name\": \"ADP\"\n      },\n      \"is_suspicious\": false,\n      \"last_task_status\": \"done\",\n      \"start_date\": null,\n      \"end_date\": null,\n      \"company_name\": \"McDonald's (Franchise)\",\n      \"company_address\": null,\n      \"company_domain\": null,\n      \"company_logo\": null,\n      \"employments\": [\n        {\n          \"id\": \"6b312680eaf147859182be93f7a7ae69\",\n          \"job_title\": \"Crew Member\",\n          \"job_type\": \"F\",\n          \"start_date\": \"2023-01-01\",\n          \"end_date\": null,\n          \"external_last_updated\": \"2026-11-09\",\n          \"is_active\": true,\n          \"income\": \"50330.02\",\n          \"income_unit\": \"YEARLY\",\n          \"pay_rate\": \"1935.77\",\n          \"pay_frequency\": \"BW\",\n          \"manager_name\": \"Jenny McDouglas\",\n          \"company\": {\n            \"name\": \"McDonalds\",\n            \"address\": {\n              \"zip\": \"98765\",\n              \"city\": \"Anytown\",\n              \"state\": \"CA\",\n              \"street\": \"123 Main Street\",\n              \"country\": \"US\"\n            },\n            \"phone\": \"5555551234\",\n            \"ein\": null\n          },\n          \"profile\": {\n            \"id\": \"499639d3263c4e48ac90aeb6fcf8bc9c\",\n            \"created_at\": \"2026-11-18T16:36:50.873056Z\",\n            \"updated_at\": \"2026-11-18T16:36:50.873067Z\",\n            \"first_name\": \"John\",\n            \"last_name\": \"Doe\",\n            \"full_name\": \"John Doe\",\n            \"middle_initials\": null,\n            \"email\": \"john.doe@gmail.com\",\n            \"ssn\": \"991919991\",\n            \"date_of_birth\": \"1992-03-03\",\n            \"home_address\": {\n              \"zip\": \"94062\",\n              \"city\": \"Redwood City\",\n              \"state\": \"CA\",\n              \"street\": \"35 Dry Ridge Rd\",\n              \"country\": \"US\"\n            }\n          },\n          \"statements\": [\n            {\n              \"id\": \"c755bed39f784462b6f6622732cd94b7\",\n              \"pay_date\": \"2026-11-09\",\n              \"net_pay\": \"1629.98\",\n              \"net_pay_ytd\": \"37489.54\",\n              \"gross_pay\": \"2157.89\",\n              \"gross_pay_ytd\": \"49631.47\",\n              \"bonus\": null,\n              \"commission\": null,\n              \"hours\": \"80.00\",\n              \"basis_of_pay\": \"S\",\n              \"period_start\": \"2026-10-27\",\n              \"period_end\": \"2026-11-09\",\n              \"regular\": \"1935.77\",\n              \"regular_ytd\": \"44522.71\",\n              \"bonus_ytd\": null,\n              \"commission_ytd\": null,\n              \"overtime\": \"222.12\",\n              \"overtime_ytd\": \"5108.76\",\n              \"other_pay\": null,\n              \"other_pay_ytd\": null,\n              \"earnings\": [\n                {\n                  \"name\": \"Regular\",\n                  \"category\": \"regular\",\n                  \"amount\": \"1935.77\",\n                  \"rate\": \"26.92\",\n                  \"units\": \"71.90\"\n                },\n                {\n                  \"name\": \"Double Time\",\n                  \"category\": \"overtime\",\n                  \"amount\": \"161.54\",\n                  \"rate\": \"53.84\",\n                  \"units\": \"3.00\"\n                }\n              ],\n              \"earnings_ytd\": [\n                {\n                  \"name\": \"Regular\",\n                  \"category\": \"regular\",\n                  \"amount\": \"44522.71\",\n                  \"rate\": \"26.92\",\n                  \"units\": \"1653.70\"\n                },\n                {\n                  \"name\": \"Double Time\",\n                  \"category\": \"overtime\",\n                  \"amount\": \"3715.42\",\n                  \"rate\": \"53.84\",\n                  \"units\": \"69.00\"\n                }\n              ],\n              \"deductions\": [\n                {\n                  \"name\": \"Federal Income Tax\",\n                  \"amount\": \"153.63\",\n                  \"category\": \"federal\"\n                },\n                {\n                  \"name\": \"Social Security Tax\",\n                  \"amount\": \"133.89\",\n                  \"category\": \"socialsec\"\n                }\n              ],\n              \"deductions_ytd\": [\n                {\n                  \"name\": \"Federal Income Tax\",\n                  \"amount\": \"3533.49\",\n                  \"category\": \"federal\"\n                },\n                {\n                  \"name\": \"Social Security Tax\",\n                  \"amount\": \"3079.47\",\n                  \"category\": \"socialsec\"\n                }\n              ],\n              \"md5sum\": \"efaa499fbcd2a3fccec08da394247bad\",\n              \"file\": \"<redacted presigned URL>\",\n              \"derived_fields\": [],\n              \"missing_data_fields\": [],\n              \"check_number\": null\n            },\n            {\n              \"id\": \"cbd3e37b84f5484ab369bdff4458eaae\",\n              \"pay_date\": \"2026-10-26\",\n              \"net_pay\": \"1629.98\",\n              \"net_pay_ytd\": \"35859.56\",\n              \"gross_pay\": \"2157.89\",\n              \"gross_pay_ytd\": \"47473.58\",\n              \"bonus\": null,\n              \"commission\": null,\n              \"hours\": \"80.00\",\n              \"basis_of_pay\": \"S\",\n              \"period_start\": \"2026-10-13\",\n              \"period_end\": \"2026-10-26\",\n              \"regular\": \"1935.77\",\n              \"regular_ytd\": \"42586.94\",\n              \"bonus_ytd\": null,\n              \"commission_ytd\": null,\n              \"overtime\": \"222.12\",\n              \"overtime_ytd\": \"4886.64\",\n              \"other_pay\": null,\n              \"other_pay_ytd\": null,\n              \"earnings\": [\n                {\n                  \"name\": \"Regular\",\n                  \"category\": \"regular\",\n                  \"amount\": \"1935.77\",\n                  \"rate\": \"26.92\",\n                  \"units\": \"71.90\"\n                },\n                {\n                  \"name\": \"Double Time\",\n                  \"category\": \"overtime\",\n                  \"amount\": \"161.54\",\n                  \"rate\": \"53.84\",\n                  \"units\": \"3.00\"\n                }\n              ],\n              \"earnings_ytd\": [\n                {\n                  \"name\": \"Regular\",\n                  \"category\": \"regular\",\n                  \"amount\": \"42586.94\",\n                  \"rate\": \"26.92\",\n                  \"units\": \"1581.80\"\n                },\n                {\n                  \"name\": \"Double Time\",\n                  \"category\": \"overtime\",\n                  \"amount\": \"3553.88\",\n                  \"rate\": \"53.84\",\n                  \"units\": \"66.00\"\n                }\n              ],\n              \"deductions\": [\n                {\n                  \"name\": \"Federal Income Tax\",\n                  \"amount\": \"153.63\",\n                  \"category\": \"federal\"\n                },\n                {\n                  \"name\": \"Social Security Tax\",\n                  \"amount\": \"133.89\",\n                  \"category\": \"socialsec\"\n                }\n              ],\n              \"deductions_ytd\": [\n                {\n                  \"name\": \"Federal Income Tax\",\n                  \"amount\": \"3379.86\",\n                  \"category\": \"federal\"\n                },\n                {\n                  \"name\": \"Social Security Tax\",\n                  \"amount\": \"2945.58\",\n                  \"category\": \"socialsec\"\n                }\n              ],\n              \"md5sum\": \"668652ff28679a36d404f55acc26a7c2\",\n              \"file\": \"<redacted presigned URL>\",\n              \"derived_fields\": [],\n              \"missing_data_fields\": [],\n              \"check_number\": null\n            }\n          ],\n          \"annual_income_summary\": [\n            {\n              \"id\": \"c755bed39f784462b6f6622732cd94b7\",\n              \"year\": 2026,\n              \"regular\": \"44522.71\",\n              \"bonus\": null,\n              \"commission\": null,\n              \"overtime\": \"5108.76\",\n              \"other_pay\": null,\n              \"net_pay\": \"37489.54\",\n              \"gross_pay\": \"49631.47\"\n            },\n            {\n              \"id\": \"4295bd9f9f2f460a95362e56fa5cc23e\",\n              \"year\": 2025,\n              \"regular\": \"50330.02\",\n              \"bonus\": null,\n              \"commission\": null,\n              \"overtime\": \"5775.12\",\n              \"other_pay\": null,\n              \"net_pay\": \"42379.48\",\n              \"gross_pay\": \"56105.14\"\n            }\n          ],\n          \"bank_accounts\": [],\n          \"w2s\": [\n            {\n              \"file\": \"<redacted presigned URL>\",\n              \"md5sum\": \"4f5a0167ec30d2858aaca4838eb06b48\",\n              \"year\": 2023,\n              \"wages\": \"56105.14\",\n              \"federal_tax\": \"3994.38\",\n              \"social_security_wages\": \"56105.14\",\n              \"social_security_tax\": \"3481.14\",\n              \"medicare_wages\": \"56105.14\",\n              \"medicare_tax\": \"814.06\",\n              \"gross_pay\": null\n            },\n            {\n              \"file\": \"<redacted presigned URL>\",\n              \"md5sum\": \"1763d3b724d63c4a947c5a7ab561c2cc\",\n              \"year\": 2024,\n              \"wages\": \"56105.14\",\n              \"federal_tax\": \"3994.38\",\n              \"social_security_wages\": \"56105.14\",\n              \"social_security_tax\": \"3481.14\",\n              \"medicare_wages\": \"56105.14\",\n              \"medicare_tax\": \"814.06\",\n              \"gross_pay\": null\n            }\n          ],\n          \"original_hire_date\": \"2012-02-01\",\n          \"derived_fields\": [],\n          \"missing_data_fields\": [],\n          \"dates_from_statements\": false,\n          \"employed_in_role\": \"3 years 10 months\"\n        }\n      ]\n    }\n  ],\n  \"insurance\": null,\n  \"bank\": null,\n  \"financial_accounts\": null,\n  \"is_expired\": false,\n  \"initial_order\": null,\n  \"refresh_order\": null,\n  \"manager\": null,\n  \"loan\": null,\n  \"template_id\": null,\n  \"fannie_voie_report_id\": \"ff61f134a8a24447971f095eee0b7f97\",\n  \"freddie_voie_report_id\": \"ff61f134a8a24447971f095eee0b7f97\",\n  \"voie_report_id\": \"ff61f134a8a24447971f095eee0b7f97\",\n  \"voa_report_id\": null,\n  \"income_insights_report_id\": null,\n  \"short_share_url\": \"https://truv.com/s/lsqF8dvc\",\n  \"cc_emails\": [],\n  \"aim_check_report_id\": null,\n  \"invoice\": {\n    \"status\": \"success\",\n    \"file\": \"<redacted presigned URL>\"\n  },\n  \"notes\": null\n}"
+            },
+            {
+              "name": "404 Unknown order ID (sandbox)",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/orders/00000000000000000000000000000000/",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "orders",
+                    "00000000000000000000000000000000",
+                    ""
+                  ]
+                }
+              },
+              "status": "Not Found",
+              "code": 404,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"detail\": \"Not found.\"\n}"
             }
           ]
         }
@@ -873,6 +1130,19 @@
                 }
               ],
               "body": "{\n  \"report_id\": \"ff61f134a8a24447971f095eee0b7f97\",\n  \"created_at\": \"2026-11-18T16:36:58.821869Z\",\n  \"completed_at\": \"2026-11-18T16:36:58.580569Z\",\n  \"last_task_at\": \"2026-11-18T16:35:24.479295Z\",\n  \"links\": [\n    {\n      \"id\": \"c2461e00b8454467bc9fd7a6a64919b8\",\n      \"link_id\": \"453583850cfc4ff492c60090ed3ec12b\",\n      \"tracking_info\": \"c35ceedd5b62467d99c3d0ea6371c35b\",\n      \"data_source\": \"payroll\",\n      \"provider\": \"adp\",\n      \"provider_name\": \"ADP\",\n      \"employments\": [\n        {\n          \"id\": \"6b312680eaf147859182be93f7a7ae69\",\n          \"job_title\": \"Crew Member\",\n          \"job_type\": \"F\",\n          \"start_date\": \"2023-01-01\",\n          \"end_date\": null,\n          \"external_last_updated\": \"2026-11-09\",\n          \"is_active\": true,\n          \"manager_name\": \"Jenny McDouglas\",\n          \"company\": {\n            \"name\": \"McDonalds\",\n            \"address\": {\n              \"zip\": \"98765\",\n              \"city\": \"Anytown\",\n              \"state\": \"CA\",\n              \"street\": \"123 Main Street\",\n              \"country\": \"US\"\n            },\n            \"phone\": \"5555551234\",\n            \"ein\": null\n          },\n          \"profile\": {\n            \"id\": \"499639d3263c4e48ac90aeb6fcf8bc9c\",\n            \"created_at\": \"2026-11-18T16:36:50.873056Z\",\n            \"updated_at\": \"2026-11-18T16:36:50.873067Z\",\n            \"first_name\": \"John\",\n            \"last_name\": \"Doe\",\n            \"full_name\": \"John Doe\",\n            \"middle_initials\": null,\n            \"email\": \"john.doe@gmail.com\",\n            \"ssn\": \"991919991\",\n            \"date_of_birth\": \"1992-03-03\",\n            \"home_address\": {\n              \"zip\": \"94062\",\n              \"city\": \"Redwood City\",\n              \"state\": \"CA\",\n              \"street\": \"35 Dry Ridge Rd\",\n              \"country\": \"US\"\n            }\n          },\n          \"original_hire_date\": \"2012-02-01\",\n          \"derived_fields\": [],\n          \"missing_data_fields\": [],\n          \"income\": \"50330.02\",\n          \"income_unit\": \"YEARLY\",\n          \"pay_rate\": \"1935.77\",\n          \"pay_frequency\": \"BW\",\n          \"statements\": [\n            {\n              \"id\": \"c755bed39f784462b6f6622732cd94b7\",\n              \"pay_date\": \"2026-11-09\",\n              \"net_pay\": \"1629.98\",\n              \"net_pay_ytd\": \"37489.54\",\n              \"gross_pay\": \"2157.89\",\n              \"gross_pay_ytd\": \"49631.47\",\n              \"bonus\": null,\n              \"commission\": null,\n              \"hours\": \"80.00\",\n              \"basis_of_pay\": \"S\",\n              \"period_start\": \"2026-10-27\",\n              \"period_end\": \"2026-11-09\",\n              \"regular\": \"1935.77\",\n              \"regular_ytd\": \"44522.71\",\n              \"bonus_ytd\": null,\n              \"commission_ytd\": null,\n              \"overtime\": \"222.12\",\n              \"overtime_ytd\": \"5108.76\",\n              \"other_pay\": null,\n              \"other_pay_ytd\": null,\n              \"earnings\": [\n                {\n                  \"name\": \"Regular\",\n                  \"category\": \"regular\",\n                  \"amount\": \"1935.77\",\n                  \"rate\": \"26.92\",\n                  \"units\": \"71.90\"\n                },\n                {\n                  \"name\": \"Double Time\",\n                  \"category\": \"overtime\",\n                  \"amount\": \"161.54\",\n                  \"rate\": \"53.84\",\n                  \"units\": \"3.00\"\n                }\n              ],\n              \"earnings_ytd\": [\n                {\n                  \"name\": \"Regular\",\n                  \"category\": \"regular\",\n                  \"amount\": \"44522.71\",\n                  \"rate\": \"26.92\",\n                  \"units\": \"1653.70\"\n                },\n                {\n                  \"name\": \"Double Time\",\n                  \"category\": \"overtime\",\n                  \"amount\": \"3715.42\",\n                  \"rate\": \"53.84\",\n                  \"units\": \"69.00\"\n                }\n              ],\n              \"deductions\": [\n                {\n                  \"name\": \"Federal Income Tax\",\n                  \"amount\": \"153.63\",\n                  \"category\": \"federal\"\n                },\n                {\n                  \"name\": \"Social Security Tax\",\n                  \"amount\": \"133.89\",\n                  \"category\": \"socialsec\"\n                }\n              ],\n              \"deductions_ytd\": [\n                {\n                  \"name\": \"Federal Income Tax\",\n                  \"amount\": \"3533.49\",\n                  \"category\": \"federal\"\n                },\n                {\n                  \"name\": \"Social Security Tax\",\n                  \"amount\": \"3079.47\",\n                  \"category\": \"socialsec\"\n                }\n              ],\n              \"md5sum\": \"efaa499fbcd2a3fccec08da394247bad\",\n              \"file\": \"<redacted presigned URL>\",\n              \"derived_fields\": [],\n              \"missing_data_fields\": [],\n              \"check_number\": null\n            },\n            {\n              \"id\": \"cbd3e37b84f5484ab369bdff4458eaae\",\n              \"pay_date\": \"2026-10-26\",\n              \"net_pay\": \"1629.98\",\n              \"net_pay_ytd\": \"35859.56\",\n              \"gross_pay\": \"2157.89\",\n              \"gross_pay_ytd\": \"47473.58\",\n              \"bonus\": null,\n              \"commission\": null,\n              \"hours\": \"80.00\",\n              \"basis_of_pay\": \"S\",\n              \"period_start\": \"2026-10-13\",\n              \"period_end\": \"2026-10-26\",\n              \"regular\": \"1935.77\",\n              \"regular_ytd\": \"42586.94\",\n              \"bonus_ytd\": null,\n              \"commission_ytd\": null,\n              \"overtime\": \"222.12\",\n              \"overtime_ytd\": \"4886.64\",\n              \"other_pay\": null,\n              \"other_pay_ytd\": null,\n              \"earnings\": [\n                {\n                  \"name\": \"Regular\",\n                  \"category\": \"regular\",\n                  \"amount\": \"1935.77\",\n                  \"rate\": \"26.92\",\n                  \"units\": \"71.90\"\n                },\n                {\n                  \"name\": \"Double Time\",\n                  \"category\": \"overtime\",\n                  \"amount\": \"161.54\",\n                  \"rate\": \"53.84\",\n                  \"units\": \"3.00\"\n                }\n              ],\n              \"earnings_ytd\": [\n                {\n                  \"name\": \"Regular\",\n                  \"category\": \"regular\",\n                  \"amount\": \"42586.94\",\n                  \"rate\": \"26.92\",\n                  \"units\": \"1581.80\"\n                },\n                {\n                  \"name\": \"Double Time\",\n                  \"category\": \"overtime\",\n                  \"amount\": \"3553.88\",\n                  \"rate\": \"53.84\",\n                  \"units\": \"66.00\"\n                }\n              ],\n              \"deductions\": [\n                {\n                  \"name\": \"Federal Income Tax\",\n                  \"amount\": \"153.63\",\n                  \"category\": \"federal\"\n                },\n                {\n                  \"name\": \"Social Security Tax\",\n                  \"amount\": \"133.89\",\n                  \"category\": \"socialsec\"\n                }\n              ],\n              \"deductions_ytd\": [\n                {\n                  \"name\": \"Federal Income Tax\",\n                  \"amount\": \"3379.86\",\n                  \"category\": \"federal\"\n                },\n                {\n                  \"name\": \"Social Security Tax\",\n                  \"amount\": \"2945.58\",\n                  \"category\": \"socialsec\"\n                }\n              ],\n              \"md5sum\": \"668652ff28679a36d404f55acc26a7c2\",\n              \"file\": \"<redacted presigned URL>\",\n              \"derived_fields\": [],\n              \"missing_data_fields\": [],\n              \"check_number\": null\n            }\n          ],\n          \"annual_income_summary\": [\n            {\n              \"id\": \"c755bed39f784462b6f6622732cd94b7\",\n              \"year\": 2026,\n              \"regular\": \"44522.71\",\n              \"bonus\": null,\n              \"commission\": null,\n              \"overtime\": \"5108.76\",\n              \"other_pay\": null,\n              \"net_pay\": \"37489.54\",\n              \"gross_pay\": \"49631.47\"\n            },\n            {\n              \"id\": \"4295bd9f9f2f460a95362e56fa5cc23e\",\n              \"year\": 2025,\n              \"regular\": \"50330.02\",\n              \"bonus\": null,\n              \"commission\": null,\n              \"overtime\": \"5775.12\",\n              \"other_pay\": null,\n              \"net_pay\": \"42379.48\",\n              \"gross_pay\": \"56105.14\"\n            }\n          ],\n          \"bank_accounts\": [],\n          \"w2s\": [\n            {\n              \"file\": \"<redacted presigned URL>\",\n              \"md5sum\": \"4f5a0167ec30d2858aaca4838eb06b48\",\n              \"year\": 2023,\n              \"wages\": \"56105.14\",\n              \"federal_tax\": \"3994.38\",\n              \"social_security_wages\": \"56105.14\",\n              \"social_security_tax\": \"3481.14\",\n              \"medicare_wages\": \"56105.14\",\n              \"medicare_tax\": \"814.06\",\n              \"gross_pay\": null\n            },\n            {\n              \"file\": \"<redacted presigned URL>\",\n              \"md5sum\": \"1763d3b724d63c4a947c5a7ab561c2cc\",\n              \"year\": 2024,\n              \"wages\": \"56105.14\",\n              \"federal_tax\": \"3994.38\",\n              \"social_security_wages\": \"56105.14\",\n              \"social_security_tax\": \"3481.14\",\n              \"medicare_wages\": \"56105.14\",\n              \"medicare_tax\": \"814.06\",\n              \"gross_pay\": null\n            }\n          ],\n          \"gse_accepted\": true,\n          \"last_period_end\": \"2026-11-09\",\n          \"last_pay_date\": \"2026-11-09\"\n        }\n      ]\n    }\n  ]\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Report retrieved', function () {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});"
+                ]
+              }
             }
           ]
         },
@@ -949,6 +1219,19 @@
                 }
               ],
               "body": "(binary PDF, 24,661 bytes, starts with %PDF-)"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('PDF retrieved', function () {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});"
+                ]
+              }
             }
           ]
         },
@@ -1045,6 +1328,384 @@
                 }
               ],
               "body": "{\n  \"report_id\": \"69ffd7738fd94a72a6660c5582909e6e\",\n  \"created_at\": \"2026-11-18T17:55:46.343726Z\",\n  \"completed_at\": \"2026-11-18T16:36:58.580569Z\",\n  \"last_task_at\": \"2026-11-18T16:35:24.479295Z\",\n  \"links\": [\n    {\n      \"id\": \"c2461e00b8454467bc9fd7a6a64919b8\",\n      \"link_id\": \"453583850cfc4ff492c60090ed3ec12b\",\n      \"tracking_info\": \"c35ceedd5b62467d99c3d0ea6371c35b\",\n      \"data_source\": \"payroll\",\n      \"provider\": \"adp\",\n      \"provider_name\": \"ADP\",\n      \"employments\": [\n        {\n          \"id\": \"6b312680eaf147859182be93f7a7ae69\",\n          \"job_title\": \"Crew Member\",\n          \"job_type\": \"F\",\n          \"start_date\": \"2023-01-01\",\n          \"end_date\": null,\n          \"external_last_updated\": \"2026-11-09\",\n          \"is_active\": true,\n          \"manager_name\": \"Jenny McDouglas\",\n          \"company\": {\n            \"name\": \"McDonalds\",\n            \"address\": {\n              \"zip\": \"98765\",\n              \"city\": \"Anytown\",\n              \"state\": \"CA\",\n              \"street\": \"123 Main Street\",\n              \"country\": \"US\"\n            },\n            \"phone\": \"5555551234\",\n            \"ein\": null\n          },\n          \"profile\": {\n            \"id\": \"499639d3263c4e48ac90aeb6fcf8bc9c\",\n            \"created_at\": \"2026-11-18T16:36:50.873056Z\",\n            \"updated_at\": \"2026-11-18T16:36:50.873067Z\",\n            \"first_name\": \"John\",\n            \"last_name\": \"Doe\",\n            \"full_name\": \"John Doe\",\n            \"middle_initials\": null,\n            \"email\": \"john.doe@gmail.com\",\n            \"ssn\": \"991919991\",\n            \"date_of_birth\": \"1992-03-03\",\n            \"home_address\": {\n              \"zip\": \"94062\",\n              \"city\": \"Redwood City\",\n              \"state\": \"CA\",\n              \"street\": \"35 Dry Ridge Rd\",\n              \"country\": \"US\"\n            }\n          },\n          \"original_hire_date\": \"2012-02-01\",\n          \"derived_fields\": [],\n          \"missing_data_fields\": [],\n          \"income\": \"50330.02\",\n          \"income_unit\": \"YEARLY\",\n          \"pay_rate\": \"1935.77\",\n          \"pay_frequency\": \"BW\",\n          \"statements\": [\n            {\n              \"id\": \"c755bed39f784462b6f6622732cd94b7\",\n              \"pay_date\": \"2026-11-09\",\n              \"net_pay\": \"1629.98\",\n              \"net_pay_ytd\": \"37489.54\",\n              \"gross_pay\": \"2157.89\",\n              \"gross_pay_ytd\": \"49631.47\",\n              \"bonus\": null,\n              \"commission\": null,\n              \"hours\": \"80.00\",\n              \"basis_of_pay\": \"S\",\n              \"period_start\": \"2026-10-27\",\n              \"period_end\": \"2026-11-09\",\n              \"regular\": \"1935.77\",\n              \"regular_ytd\": \"44522.71\",\n              \"bonus_ytd\": null,\n              \"commission_ytd\": null,\n              \"overtime\": \"222.12\",\n              \"overtime_ytd\": \"5108.76\",\n              \"other_pay\": null,\n              \"other_pay_ytd\": null,\n              \"earnings\": [\n                {\n                  \"name\": \"Regular\",\n                  \"category\": \"regular\",\n                  \"amount\": \"1935.77\",\n                  \"rate\": \"26.92\",\n                  \"units\": \"71.90\"\n                },\n                {\n                  \"name\": \"Double Time\",\n                  \"category\": \"overtime\",\n                  \"amount\": \"161.54\",\n                  \"rate\": \"53.84\",\n                  \"units\": \"3.00\"\n                }\n              ],\n              \"earnings_ytd\": [\n                {\n                  \"name\": \"Regular\",\n                  \"category\": \"regular\",\n                  \"amount\": \"44522.71\",\n                  \"rate\": \"26.92\",\n                  \"units\": \"1653.70\"\n                },\n                {\n                  \"name\": \"Double Time\",\n                  \"category\": \"overtime\",\n                  \"amount\": \"3715.42\",\n                  \"rate\": \"53.84\",\n                  \"units\": \"69.00\"\n                }\n              ],\n              \"deductions\": [\n                {\n                  \"name\": \"Federal Income Tax\",\n                  \"amount\": \"153.63\",\n                  \"category\": \"federal\"\n                },\n                {\n                  \"name\": \"Social Security Tax\",\n                  \"amount\": \"133.89\",\n                  \"category\": \"socialsec\"\n                }\n              ],\n              \"deductions_ytd\": [\n                {\n                  \"name\": \"Federal Income Tax\",\n                  \"amount\": \"3533.49\",\n                  \"category\": \"federal\"\n                },\n                {\n                  \"name\": \"Social Security Tax\",\n                  \"amount\": \"3079.47\",\n                  \"category\": \"socialsec\"\n                }\n              ],\n              \"md5sum\": \"efaa499fbcd2a3fccec08da394247bad\",\n              \"file\": \"<redacted presigned URL>\",\n              \"derived_fields\": [],\n              \"missing_data_fields\": [],\n              \"check_number\": null\n            },\n            {\n              \"id\": \"cbd3e37b84f5484ab369bdff4458eaae\",\n              \"pay_date\": \"2026-10-26\",\n              \"net_pay\": \"1629.98\",\n              \"net_pay_ytd\": \"35859.56\",\n              \"gross_pay\": \"2157.89\",\n              \"gross_pay_ytd\": \"47473.58\",\n              \"bonus\": null,\n              \"commission\": null,\n              \"hours\": \"80.00\",\n              \"basis_of_pay\": \"S\",\n              \"period_start\": \"2026-10-13\",\n              \"period_end\": \"2026-10-26\",\n              \"regular\": \"1935.77\",\n              \"regular_ytd\": \"42586.94\",\n              \"bonus_ytd\": null,\n              \"commission_ytd\": null,\n              \"overtime\": \"222.12\",\n              \"overtime_ytd\": \"4886.64\",\n              \"other_pay\": null,\n              \"other_pay_ytd\": null,\n              \"earnings\": [\n                {\n                  \"name\": \"Regular\",\n                  \"category\": \"regular\",\n                  \"amount\": \"1935.77\",\n                  \"rate\": \"26.92\",\n                  \"units\": \"71.90\"\n                },\n                {\n                  \"name\": \"Double Time\",\n                  \"category\": \"overtime\",\n                  \"amount\": \"161.54\",\n                  \"rate\": \"53.84\",\n                  \"units\": \"3.00\"\n                }\n              ],\n              \"earnings_ytd\": [\n                {\n                  \"name\": \"Regular\",\n                  \"category\": \"regular\",\n                  \"amount\": \"42586.94\",\n                  \"rate\": \"26.92\",\n                  \"units\": \"1581.80\"\n                },\n                {\n                  \"name\": \"Double Time\",\n                  \"category\": \"overtime\",\n                  \"amount\": \"3553.88\",\n                  \"rate\": \"53.84\",\n                  \"units\": \"66.00\"\n                }\n              ],\n              \"deductions\": [\n                {\n                  \"name\": \"Federal Income Tax\",\n                  \"amount\": \"153.63\",\n                  \"category\": \"federal\"\n                },\n                {\n                  \"name\": \"Social Security Tax\",\n                  \"amount\": \"133.89\",\n                  \"category\": \"socialsec\"\n                }\n              ],\n              \"deductions_ytd\": [\n                {\n                  \"name\": \"Federal Income Tax\",\n                  \"amount\": \"3379.86\",\n                  \"category\": \"federal\"\n                },\n                {\n                  \"name\": \"Social Security Tax\",\n                  \"amount\": \"2945.58\",\n                  \"category\": \"socialsec\"\n                }\n              ],\n              \"md5sum\": \"668652ff28679a36d404f55acc26a7c2\",\n              \"file\": \"<redacted presigned URL>\",\n              \"derived_fields\": [],\n              \"missing_data_fields\": [],\n              \"check_number\": null\n            }\n          ],\n          \"annual_income_summary\": [\n            {\n              \"id\": \"c755bed39f784462b6f6622732cd94b7\",\n              \"year\": 2026,\n              \"regular\": \"44522.71\",\n              \"bonus\": null,\n              \"commission\": null,\n              \"overtime\": \"5108.76\",\n              \"other_pay\": null,\n              \"net_pay\": \"37489.54\",\n              \"gross_pay\": \"49631.47\"\n            },\n            {\n              \"id\": \"4295bd9f9f2f460a95362e56fa5cc23e\",\n              \"year\": 2025,\n              \"regular\": \"50330.02\",\n              \"bonus\": null,\n              \"commission\": null,\n              \"overtime\": \"5775.12\",\n              \"other_pay\": null,\n              \"net_pay\": \"42379.48\",\n              \"gross_pay\": \"56105.14\"\n            }\n          ],\n          \"bank_accounts\": [],\n          \"w2s\": [\n            {\n              \"file\": \"<redacted presigned URL>\",\n              \"md5sum\": \"4f5a0167ec30d2858aaca4838eb06b48\",\n              \"year\": 2023,\n              \"wages\": \"56105.14\",\n              \"federal_tax\": \"3994.38\",\n              \"social_security_wages\": \"56105.14\",\n              \"social_security_tax\": \"3481.14\",\n              \"medicare_wages\": \"56105.14\",\n              \"medicare_tax\": \"814.06\",\n              \"gross_pay\": null\n            },\n            {\n              \"file\": \"<redacted presigned URL>\",\n              \"md5sum\": \"1763d3b724d63c4a947c5a7ab561c2cc\",\n              \"year\": 2024,\n              \"wages\": \"56105.14\",\n              \"federal_tax\": \"3994.38\",\n              \"social_security_wages\": \"56105.14\",\n              \"social_security_tax\": \"3481.14\",\n              \"medicare_wages\": \"56105.14\",\n              \"medicare_tax\": \"814.06\",\n              \"gross_pay\": null\n            }\n          ],\n          \"gse_accepted\": true,\n          \"last_period_end\": \"2026-11-09\",\n          \"last_pay_date\": \"2026-11-09\"\n        }\n      ]\n    }\n  ]\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "7. Order lifecycle (server-side)",
+      "description": "Operations after the borrower finishes, or instead of finishing.\n\n- Order events: audit trail for one order, for support tickets and QA.\n- Data refresh: re-verify before closing without sending the borrower back through Bridge.\n- Cancel: the borrower withdraws or the application is declined.\n- List orders: reconciliation and back-office search, for example by application number.\n\nRun these against a completed order. In a collection run they come last, so Cancel does not affect the earlier folders.",
+      "item": [
+        {
+          "name": "Get order events",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Access-Client-Id",
+                "value": "{{truv_client_id}}",
+                "type": "text"
+              },
+              {
+                "key": "X-Access-Secret",
+                "value": "{{truv_secret}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/orders/{{order_id}}/events/?include_refresh_orders=true",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "orders",
+                "{{order_id}}",
+                "events",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "include_refresh_orders",
+                  "value": "true"
+                }
+              ]
+            },
+            "description": "What it does: returns the order's event history (created, employer completed, notification sent or failed, refresh orders).\n\nQuery\n- include_refresh_orders: true to include events from refresh orders, flagged with is_refresh.\n\nUse it for support: when a loan officer asks why an application is stuck, this shows whether the borrower logged in, which employer completed and whether any notification bounced. The example shows the original order plus a refresh, where Truv tried to email the borrower and delivery failed (example.com address)."
+          },
+          "response": [
+            {
+              "name": "Original order plus one refresh (sandbox run)",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/orders/{{order_id}}/events/?include_refresh_orders=true",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "orders",
+                    "{{order_id}}",
+                    "events",
+                    ""
+                  ],
+                  "query": [
+                    {
+                      "key": "include_refresh_orders",
+                      "value": "true"
+                    }
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"results\": [\n    {\n      \"object\": \"order\",\n      \"type\": \"order_created\",\n      \"order_id\": \"2fc2e28b72184f8799865e821e0d34fa\",\n      \"is_refresh\": false,\n      \"suborder_id\": null,\n      \"task_id\": null,\n      \"link_id\": null,\n      \"timestamp\": \"2026-11-18T16:34:31.277739Z\"\n    },\n    {\n      \"object\": \"order\",\n      \"type\": \"suborder_completed\",\n      \"order_id\": \"2fc2e28b72184f8799865e821e0d34fa\",\n      \"is_refresh\": false,\n      \"suborder_id\": \"c35ceedd5b62467d99c3d0ea6371c35b\",\n      \"task_id\": null,\n      \"link_id\": null,\n      \"timestamp\": \"2026-11-18T16:37:30.803084Z\"\n    },\n    {\n      \"object\": \"order\",\n      \"type\": \"order_created\",\n      \"order_id\": \"bf6bfbbd8f9841ca8ef672be85a773a1\",\n      \"is_refresh\": true,\n      \"suborder_id\": null,\n      \"task_id\": null,\n      \"link_id\": null,\n      \"timestamp\": \"2026-11-18T18:49:02.245601Z\"\n    },\n    {\n      \"object\": \"notification\",\n      \"type\": \"email_first_delivery_error\",\n      \"order_id\": \"bf6bfbbd8f9841ca8ef672be85a773a1\",\n      \"is_refresh\": true,\n      \"suborder_id\": null,\n      \"task_id\": null,\n      \"link_id\": null,\n      \"timestamp\": \"2026-11-18T18:49:02.663871Z\"\n    }\n  ]\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Events retrieved', function () {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create data refresh order",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Access-Client-Id",
+                "value": "{{truv_client_id}}",
+                "type": "text"
+              },
+              {
+                "key": "X-Access-Secret",
+                "value": "{{truv_secret}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/orders/{{order_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "orders",
+                "{{order_id}}",
+                ""
+              ]
+            },
+            "description": "What it does: creates a new order that re-pulls data from the payroll connection the borrower already made. No Bridge session is needed while the link is still valid. Typical use: refresh income and employment just before closing.\n\nBody\n- products: income (or employment) for an income order.\n- employers[].id: the employer to refresh, from Get order employers[].id ({{employer_id}}). Omit employers to refresh all.\n\nFields to store from the response\n- id: the refresh order ID (stored as {{refresh_order_id}}). Poll it with Get order or wait for webhooks, as with the original.\n- initial_order: points back to the original order. The original gets refresh_order set.\n- user_id: unchanged, so webhooks match the same borrower.\n\nObserved in sandbox\n- The refresh finished within seconds with a new pdf_report and voie_report_id, but the employer status read error. Confirm with Truv which status to treat as final for refreshes.\n- This endpoint has no notification_settings field, and Truv tried to email the borrower on the refresh (see Get order events). Confirm with Truv how to suppress notifications on refresh orders for an embedded flow.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"products\": [\n    \"income\"\n  ],\n  \"employers\": [\n    {\n      \"id\": \"{{employer_id}}\"\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "Refresh order created (sandbox run)",
+              "originalRequest": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/orders/{{order_id}}/",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "orders",
+                    "{{order_id}}",
+                    ""
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"products\": [\n    \"income\"\n  ],\n  \"employers\": [\n    {\n      \"id\": \"{{employer_id}}\"\n    }\n  ]\n}"
+                }
+              },
+              "status": "Created",
+              "code": 201,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"id\": \"bf6bfbbd8f9841ca8ef672be85a773a1\",\n  \"order_number\": null,\n  \"loan_number\": null,\n  \"verification_type\": \"income\",\n  \"products\": [\n    \"income\"\n  ],\n  \"source\": \"internal\",\n  \"company_name\": \"your prospective employer\",\n  \"company_address\": null,\n  \"company_domain\": null,\n  \"company_logo\": null,\n  \"custom_field\": null,\n  \"client_name\": \"Independent (Truv case study)\",\n  \"first_name\": \"John\",\n  \"last_name\": \"Doe\",\n  \"user_id\": \"debc96669bda4088994e1f9db7e78bc0\",\n  \"bridge_token\": \"aa42070dabc143e5b0e26e3d558b1e88\",\n  \"share_url\": \"https://my.truv.com/orders/?bridge_token=aa42070dabc143e5b0e26e3d558b1e88&order_group_id=bf6bfbbd8f9841ca8ef672be85a773a1\",\n  \"created_at\": \"2026-11-18T18:49:02.245601Z\",\n  \"updated_at\": \"2026-11-18T18:49:02.245615Z\",\n  \"expired_at\": \"2026-11-23T18:49:02.265665Z\",\n  \"canceled_at\": null,\n  \"completed_at\": null,\n  \"user_consent_at\": null,\n  \"employers\": [\n    {\n      \"id\": \"e36ae90c42854b678db6d3a283615363\",\n      \"product_type\": \"income\",\n      \"status\": \"pending\",\n      \"suborder_number\": null,\n      \"created_at\": \"2026-11-18T18:49:02.382131Z\",\n      \"bridge_token\": \"ed5bf75c80ef42b68bd225bfb45efe2c\",\n      \"link_id\": null,\n      \"access_token\": null,\n      \"pdf_report\": null,\n      \"data_source\": null,\n      \"provider\": {\n        \"logo_url\": \"https://d1uvo9h6rsmxet.cloudfront.net/provider_logos/adp.svg\",\n        \"id\": \"adp\",\n        \"name\": \"ADP\"\n      },\n      \"is_suspicious\": false,\n      \"last_task_status\": null,\n      \"start_date\": null,\n      \"end_date\": null,\n      \"company_name\": \"McDonald's (Franchise)\",\n      \"company_address\": null,\n      \"company_domain\": null,\n      \"company_logo\": \"https://d1uvo9h6rsmxet.cloudfront.net/company_mapping_logo/040c4a81ddf74fe187291a6e86f7eabc.png\",\n      \"employments\": null\n    }\n  ],\n  \"insurance\": null,\n  \"bank\": null,\n  \"financial_accounts\": null,\n  \"is_expired\": false,\n  \"initial_order\": \"2fc2e28b72184f8799865e821e0d34fa\",\n  \"refresh_order\": null,\n  \"manager\": null,\n  \"loan\": null,\n  \"template_id\": null,\n  \"fannie_voie_report_id\": null,\n  \"freddie_voie_report_id\": null,\n  \"voie_report_id\": null,\n  \"voa_report_id\": null,\n  \"income_insights_report_id\": null,\n  \"short_share_url\": \"https://truv.com/s/6yE3AtEF\",\n  \"cc_emails\": [],\n  \"aim_check_report_id\": null,\n  \"invoice\": null,\n  \"notes\": null\n}"
+            },
+            {
+              "name": "Same refresh order a minute later, via Get order (sandbox run)",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/orders/{{refresh_order_id}}/",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "orders",
+                    "{{refresh_order_id}}",
+                    ""
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"id\": \"bf6bfbbd8f9841ca8ef672be85a773a1\",\n  \"order_number\": null,\n  \"loan_number\": null,\n  \"verification_type\": \"income\",\n  \"products\": [\n    \"income\"\n  ],\n  \"source\": \"internal\",\n  \"company_name\": \"your prospective employer\",\n  \"company_address\": null,\n  \"company_domain\": null,\n  \"company_logo\": null,\n  \"custom_field\": null,\n  \"client_name\": \"Independent (Truv case study)\",\n  \"first_name\": \"John\",\n  \"last_name\": \"Doe\",\n  \"user_id\": \"debc96669bda4088994e1f9db7e78bc0\",\n  \"bridge_token\": \"aa42070dabc143e5b0e26e3d558b1e88\",\n  \"share_url\": \"https://my.truv.com/orders/?bridge_token=aa42070dabc143e5b0e26e3d558b1e88&order_group_id=bf6bfbbd8f9841ca8ef672be85a773a1\",\n  \"created_at\": \"2026-11-18T18:49:02.245601Z\",\n  \"updated_at\": \"2026-11-18T18:49:15.645935Z\",\n  \"expired_at\": \"2026-11-23T18:49:02.265665Z\",\n  \"canceled_at\": null,\n  \"completed_at\": null,\n  \"user_consent_at\": null,\n  \"employers\": [\n    {\n      \"id\": \"e36ae90c42854b678db6d3a283615363\",\n      \"product_type\": \"income\",\n      \"status\": \"error\",\n      \"suborder_number\": null,\n      \"created_at\": \"2026-11-18T18:49:02.382131Z\",\n      \"bridge_token\": \"ed5bf75c80ef42b68bd225bfb45efe2c\",\n      \"link_id\": \"453583850cfc4ff492c60090ed3ec12b\",\n      \"access_token\": \"<redacted link access token>\",\n      \"pdf_report\": \"<redacted presigned URL>\",\n      \"data_source\": \"payroll\",\n      \"provider\": {\n        \"logo_url\": \"https://d1uvo9h6rsmxet.cloudfront.net/provider_logos/adp.svg\",\n        \"id\": \"adp\",\n        \"name\": \"ADP\"\n      },\n      \"is_suspicious\": false,\n      \"last_task_status\": \"done\",\n      \"start_date\": null,\n      \"end_date\": null,\n      \"company_name\": \"McDonald's (Franchise)\",\n      \"company_address\": null,\n      \"company_domain\": null,\n      \"company_logo\": \"https://d1uvo9h6rsmxet.cloudfront.net/company_mapping_logo/040c4a81ddf74fe187291a6e86f7eabc.png\",\n      \"employments\": [\n        {\n          \"id\": \"6b312680eaf147859182be93f7a7ae69\",\n          \"job_title\": \"Crew Member\",\n          \"job_type\": \"F\",\n          \"start_date\": \"2023-01-01\",\n          \"end_date\": null,\n          \"external_last_updated\": \"2026-11-09\",\n          \"is_active\": true,\n          \"income\": \"50330.02\",\n          \"income_unit\": \"YEARLY\",\n          \"pay_rate\": \"1935.77\",\n          \"pay_frequency\": \"BW\",\n          \"manager_name\": \"Jenny McDouglas\",\n          \"company\": {\n            \"name\": \"McDonalds\",\n            \"address\": {\n              \"zip\": \"98765\",\n              \"city\": \"Anytown\",\n              \"state\": \"CA\",\n              \"street\": \"123 Main Street\",\n              \"country\": \"US\"\n            },\n            \"phone\": \"5555551234\",\n            \"ein\": null\n          },\n          \"profile\": {\n            \"id\": \"499639d3263c4e48ac90aeb6fcf8bc9c\",\n            \"created_at\": \"2026-11-18T16:36:50.873056Z\",\n            \"updated_at\": \"2026-11-18T18:49:06.890904Z\",\n            \"first_name\": \"John\",\n            \"last_name\": \"Doe\",\n            \"full_name\": \"John Doe\",\n            \"middle_initials\": null,\n            \"email\": \"john.doe@gmail.com\",\n            \"ssn\": \"991919991\",\n            \"date_of_birth\": \"1992-03-03\",\n            \"home_address\": {\n              \"zip\": \"94062\",\n              \"city\": \"Redwood City\",\n              \"state\": \"CA\",\n              \"street\": \"35 Dry Ridge Rd\",\n              \"country\": \"US\"\n            }\n          },\n          \"statements\": [\n            {\n              \"id\": \"c755bed39f784462b6f6622732cd94b7\",\n              \"pay_date\": \"2026-11-09\",\n              \"net_pay\": \"1629.98\",\n              \"net_pay_ytd\": \"37489.54\",\n              \"gross_pay\": \"2157.89\",\n              \"gross_pay_ytd\": \"49631.47\",\n              \"bonus\": null,\n              \"commission\": null,\n              \"hours\": \"80.00\",\n              \"basis_of_pay\": \"S\",\n              \"period_start\": \"2026-10-27\",\n              \"period_end\": \"2026-11-09\",\n              \"regular\": \"1935.77\",\n              \"regular_ytd\": \"44522.71\",\n              \"bonus_ytd\": null,\n              \"commission_ytd\": null,\n              \"overtime\": \"222.12\",\n              \"overtime_ytd\": \"5108.76\",\n              \"other_pay\": null,\n              \"other_pay_ytd\": null,\n              \"earnings\": [\n                {\n                  \"name\": \"Regular\",\n                  \"category\": \"regular\",\n                  \"amount\": \"1935.77\",\n                  \"rate\": \"26.92\",\n                  \"units\": \"71.90\"\n                },\n                {\n                  \"name\": \"Double Time\",\n                  \"category\": \"overtime\",\n                  \"amount\": \"161.54\",\n                  \"rate\": \"53.84\",\n                  \"units\": \"3.00\"\n                }\n              ],\n              \"earnings_ytd\": [\n                {\n                  \"name\": \"Regular\",\n                  \"category\": \"regular\",\n                  \"amount\": \"44522.71\",\n                  \"rate\": \"26.92\",\n                  \"units\": \"1653.70\"\n                },\n                {\n                  \"name\": \"Double Time\",\n                  \"category\": \"overtime\",\n                  \"amount\": \"3715.42\",\n                  \"rate\": \"53.84\",\n                  \"units\": \"69.00\"\n                }\n              ],\n              \"deductions\": [\n                {\n                  \"name\": \"Federal Income Tax\",\n                  \"amount\": \"153.63\",\n                  \"category\": \"federal\"\n                },\n                {\n                  \"name\": \"Social Security Tax\",\n                  \"amount\": \"133.89\",\n                  \"category\": \"socialsec\"\n                }\n              ],\n              \"deductions_ytd\": [\n                {\n                  \"name\": \"Federal Income Tax\",\n                  \"amount\": \"3533.49\",\n                  \"category\": \"federal\"\n                },\n                {\n                  \"name\": \"Social Security Tax\",\n                  \"amount\": \"3079.47\",\n                  \"category\": \"socialsec\"\n                }\n              ],\n              \"md5sum\": \"efaa499fbcd2a3fccec08da394247bad\",\n              \"file\": \"<redacted presigned URL>\",\n              \"derived_fields\": [],\n              \"missing_data_fields\": [],\n              \"check_number\": null\n            },\n            {\n              \"id\": \"cbd3e37b84f5484ab369bdff4458eaae\",\n              \"pay_date\": \"2026-10-26\",\n              \"net_pay\": \"1629.98\",\n              \"net_pay_ytd\": \"35859.56\",\n              \"gross_pay\": \"2157.89\",\n              \"gross_pay_ytd\": \"47473.58\",\n              \"bonus\": null,\n              \"commission\": null,\n              \"hours\": \"80.00\",\n              \"basis_of_pay\": \"S\",\n              \"period_start\": \"2026-10-13\",\n              \"period_end\": \"2026-10-26\",\n              \"regular\": \"1935.77\",\n              \"regular_ytd\": \"42586.94\",\n              \"bonus_ytd\": null,\n              \"commission_ytd\": null,\n              \"overtime\": \"222.12\",\n              \"overtime_ytd\": \"4886.64\",\n              \"other_pay\": null,\n              \"other_pay_ytd\": null,\n              \"earnings\": [\n                {\n                  \"name\": \"Regular\",\n                  \"category\": \"regular\",\n                  \"amount\": \"1935.77\",\n                  \"rate\": \"26.92\",\n                  \"units\": \"71.90\"\n                },\n                {\n                  \"name\": \"Double Time\",\n                  \"category\": \"overtime\",\n                  \"amount\": \"161.54\",\n                  \"rate\": \"53.84\",\n                  \"units\": \"3.00\"\n                }\n              ],\n              \"earnings_ytd\": [\n                {\n                  \"name\": \"Regular\",\n                  \"category\": \"regular\",\n                  \"amount\": \"42586.94\",\n                  \"rate\": \"26.92\",\n                  \"units\": \"1581.80\"\n                },\n                {\n                  \"name\": \"Double Time\",\n                  \"category\": \"overtime\",\n                  \"amount\": \"3553.88\",\n                  \"rate\": \"53.84\",\n                  \"units\": \"66.00\"\n                }\n              ],\n              \"deductions\": [\n                {\n                  \"name\": \"Federal Income Tax\",\n                  \"amount\": \"153.63\",\n                  \"category\": \"federal\"\n                },\n                {\n                  \"name\": \"Social Security Tax\",\n                  \"amount\": \"133.89\",\n                  \"category\": \"socialsec\"\n                }\n              ],\n              \"deductions_ytd\": [\n                {\n                  \"name\": \"Federal Income Tax\",\n                  \"amount\": \"3379.86\",\n                  \"category\": \"federal\"\n                },\n                {\n                  \"name\": \"Social Security Tax\",\n                  \"amount\": \"2945.58\",\n                  \"category\": \"socialsec\"\n                }\n              ],\n              \"md5sum\": \"668652ff28679a36d404f55acc26a7c2\",\n              \"file\": \"<redacted presigned URL>\",\n              \"derived_fields\": [],\n              \"missing_data_fields\": [],\n              \"check_number\": null\n            }\n          ],\n          \"annual_income_summary\": [\n            {\n              \"id\": \"c755bed39f784462b6f6622732cd94b7\",\n              \"year\": 2026,\n              \"regular\": \"44522.71\",\n              \"bonus\": null,\n              \"commission\": null,\n              \"overtime\": \"5108.76\",\n              \"other_pay\": null,\n              \"net_pay\": \"37489.54\",\n              \"gross_pay\": \"49631.47\"\n            },\n            {\n              \"id\": \"4295bd9f9f2f460a95362e56fa5cc23e\",\n              \"year\": 2025,\n              \"regular\": \"50330.02\",\n              \"bonus\": null,\n              \"commission\": null,\n              \"overtime\": \"5775.12\",\n              \"other_pay\": null,\n              \"net_pay\": \"42379.48\",\n              \"gross_pay\": \"56105.14\"\n            }\n          ],\n          \"bank_accounts\": [],\n          \"w2s\": [\n            {\n              \"file\": \"<redacted presigned URL>\",\n              \"md5sum\": \"4f5a0167ec30d2858aaca4838eb06b48\",\n              \"year\": 2023,\n              \"wages\": \"56105.14\",\n              \"federal_tax\": \"3994.38\",\n              \"social_security_wages\": \"56105.14\",\n              \"social_security_tax\": \"3481.14\",\n              \"medicare_wages\": \"56105.14\",\n              \"medicare_tax\": \"814.06\",\n              \"gross_pay\": null\n            },\n            {\n              \"file\": \"<redacted presigned URL>\",\n              \"md5sum\": \"1763d3b724d63c4a947c5a7ab561c2cc\",\n              \"year\": 2024,\n              \"wages\": \"56105.14\",\n              \"federal_tax\": \"3994.38\",\n              \"social_security_wages\": \"56105.14\",\n              \"social_security_tax\": \"3481.14\",\n              \"medicare_wages\": \"56105.14\",\n              \"medicare_tax\": \"814.06\",\n              \"gross_pay\": null\n            }\n          ],\n          \"original_hire_date\": \"2012-02-01\",\n          \"derived_fields\": [],\n          \"missing_data_fields\": [],\n          \"dates_from_statements\": false,\n          \"employed_in_role\": \"3 years 10 months\"\n        }\n      ]\n    }\n  ],\n  \"insurance\": null,\n  \"bank\": null,\n  \"financial_accounts\": null,\n  \"is_expired\": false,\n  \"initial_order\": \"2fc2e28b72184f8799865e821e0d34fa\",\n  \"refresh_order\": null,\n  \"manager\": null,\n  \"loan\": null,\n  \"template_id\": null,\n  \"fannie_voie_report_id\": \"879dfcf1c6924b05951725881489721a\",\n  \"freddie_voie_report_id\": \"879dfcf1c6924b05951725881489721a\",\n  \"voie_report_id\": \"879dfcf1c6924b05951725881489721a\",\n  \"voa_report_id\": null,\n  \"income_insights_report_id\": null,\n  \"short_share_url\": \"https://truv.com/s/6yE3AtEF\",\n  \"cc_emails\": [],\n  \"aim_check_report_id\": null,\n  \"invoice\": null,\n  \"notes\": null\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Refresh order created', function () {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([201]);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "if (body.id) { pm.environment.set('refresh_order_id', body.id); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cancel order",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Access-Client-Id",
+                "value": "{{truv_client_id}}",
+                "type": "text"
+              },
+              {
+                "key": "X-Access-Secret",
+                "value": "{{truv_secret}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/orders/{{order_id}}/cancel/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "orders",
+                "{{order_id}}",
+                "cancel",
+                ""
+              ]
+            },
+            "description": "What it does: cancels the order. The Bridge token stops working and every employer moves to canceled. Call it when the borrower withdraws, the application is declined or the loan officer switches to manual documents, so the borrower cannot keep connecting.\n\nNo body. The response is the full order with employers[].status canceled and is_expired true."
+          },
+          "response": [
+            {
+              "name": "Order canceled (sandbox run)",
+              "originalRequest": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/orders/{{order_id}}/cancel/",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "orders",
+                    "{{order_id}}",
+                    "cancel",
+                    ""
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"id\": \"03a591c869264b14891b0aaecd2f68ba\",\n  \"order_number\": null,\n  \"loan_number\": null,\n  \"verification_type\": \"income\",\n  \"products\": [\n    \"income\"\n  ],\n  \"source\": \"internal\",\n  \"company_name\": \"your prospective employer\",\n  \"company_address\": null,\n  \"company_domain\": null,\n  \"company_logo\": null,\n  \"custom_field\": null,\n  \"client_name\": \"Independent (Truv case study)\",\n  \"first_name\": \"John\",\n  \"last_name\": \"Doe\",\n  \"user_id\": \"211ec59286984f75bedd7c36db9c0e72\",\n  \"bridge_token\": \"d9edd2ae85b240dc9a7f92a447351645\",\n  \"share_url\": \"https://my.truv.com/orders/?bridge_token=d9edd2ae85b240dc9a7f92a447351645&order_group_id=03a591c869264b14891b0aaecd2f68ba\",\n  \"created_at\": \"2026-11-18T18:49:02.699955Z\",\n  \"updated_at\": \"2026-11-18T18:49:02.942057Z\",\n  \"expired_at\": \"2026-11-23T18:49:02.709358Z\",\n  \"canceled_at\": \"2026-11-18T18:49:02.941911Z\",\n  \"completed_at\": null,\n  \"user_consent_at\": null,\n  \"employers\": [\n    {\n      \"id\": \"20a9ca1fef344814a7669862ed480805\",\n      \"product_type\": \"income\",\n      \"status\": \"canceled\",\n      \"suborder_number\": null,\n      \"created_at\": \"2026-11-18T18:49:02.780561Z\",\n      \"bridge_token\": \"ae9e8619cccc442289aae20155178c1a\",\n      \"link_id\": null,\n      \"access_token\": null,\n      \"pdf_report\": null,\n      \"data_source\": null,\n      \"provider\": null,\n      \"is_suspicious\": false,\n      \"last_task_status\": null,\n      \"start_date\": null,\n      \"end_date\": null,\n      \"company_name\": null,\n      \"company_address\": null,\n      \"company_domain\": null,\n      \"company_logo\": null,\n      \"employments\": null\n    }\n  ],\n  \"insurance\": null,\n  \"bank\": null,\n  \"financial_accounts\": null,\n  \"is_expired\": true,\n  \"initial_order\": null,\n  \"refresh_order\": null,\n  \"manager\": null,\n  \"loan\": null,\n  \"template_id\": null,\n  \"fannie_voie_report_id\": null,\n  \"freddie_voie_report_id\": null,\n  \"voie_report_id\": null,\n  \"voa_report_id\": null,\n  \"income_insights_report_id\": null,\n  \"short_share_url\": \"https://truv.com/s/J1QYPy0c\",\n  \"cc_emails\": [],\n  \"aim_check_report_id\": null,\n  \"invoice\": null,\n  \"notes\": null\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Order canceled', function () {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});",
+                  "const emp = (pm.response.json().employers || [])[0] || {};",
+                  "pm.test('Employer canceled', function () { pm.expect(emp.status).to.eql('canceled'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List orders",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Access-Client-Id",
+                "value": "{{truv_client_id}}",
+                "type": "text"
+              },
+              {
+                "key": "X-Access-Secret",
+                "value": "{{truv_secret}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/orders/?page_size=2&search={{application_number}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "orders",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "page_size",
+                  "value": "2"
+                },
+                {
+                  "key": "search",
+                  "value": "{{application_number}}"
+                }
+              ]
+            },
+            "description": "What it does: lists orders, newest first, with cursor pagination (next, previous).\n\nUseful query parameters\n- search: matches id, order_number, loan_number, application_number, names and more. Use the bank's application number to find an order without storing Truv IDs.\n- user_id, status, created_at__gte / created_at__lte, refresh (only or exclude).\n- page_size: default 10.\n\nUse it for a nightly reconciliation job: compare Truv orders against applications in the POS and flag any that completed but were never pulled."
+          },
+          "response": [
+            {
+              "name": "Two most recent orders (sandbox run)",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/orders/?page_size=2",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "orders",
+                    ""
+                  ],
+                  "query": [
+                    {
+                      "key": "page_size",
+                      "value": "2"
+                    }
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"next\": \"https://prod.truv.com/v1/orders/?cursor=<cursor>&page_size=2\",\n  \"previous\": null,\n  \"results\": [\n    {\n      \"id\": \"b7189f7e53244edebd102ecc9865c5d2\",\n      \"user_id\": \"2f5a86968ffe4c53abe9123a95bcfe44\",\n      \"order_number\": null,\n      \"products\": [\n        \"income\"\n      ],\n      \"source\": \"internal\",\n      \"custom_field\": null,\n      \"first_name\": \"John\",\n      \"last_name\": \"Doe\",\n      \"short_share_url\": \"https://truv.com/s/r1igGyNp\",\n      \"created_at\": \"2026-11-18T17:55:45.254330Z\",\n      \"canceled_at\": null,\n      \"expired_at\": \"2026-11-23T17:55:45.277736Z\",\n      \"initial_order\": null,\n      \"refresh_order\": null,\n      \"manager\": null,\n      \"loan\": {\n        \"loan_number\": null,\n        \"application_number\": \"CSB-APP-0001\",\n        \"originator_name\": null,\n        \"originator_email\": null,\n        \"loan_processor_name\": null,\n        \"loan_processor_email\": null\n      },\n      \"template\": null,\n      \"notes\": null,\n      \"employers\": [\n        {\n          \"id\": \"1a5c39462a6f4d75acb99b072ce294cd\",\n          \"product_type\": \"income\",\n          \"status\": \"pending\",\n          \"suborder_number\": null,\n          \"created_at\": \"2026-11-18T17:55:45.399503Z\",\n          \"link_id\": null,\n          \"data_source\": null,\n          \"provider\": null,\n          \"is_suspicious\": false,\n          \"was_attempted\": false\n        }\n      ],\n      \"insurance\": null,\n      \"financial_accounts\": null\n    },\n    {\n      \"id\": \"2fc2e28b72184f8799865e821e0d34fa\",\n      \"user_id\": \"debc96669bda4088994e1f9db7e78bc0\",\n      \"order_number\": null,\n      \"products\": [\n        \"income\"\n      ],\n      \"source\": \"internal\",\n      \"custom_field\": null,\n      \"first_name\": \"John\",\n      \"last_name\": \"Doe\",\n      \"short_share_url\": \"https://truv.com/s/lsqF8dvc\",\n      \"created_at\": \"2026-11-18T16:34:31.277739Z\",\n      \"canceled_at\": null,\n      \"expired_at\": \"2026-11-23T16:34:31.292083Z\",\n      \"initial_order\": null,\n      \"refresh_order\": null,\n      \"manager\": null,\n      \"loan\": null,\n      \"template\": null,\n      \"notes\": null,\n      \"employers\": [\n        {\n          \"id\": \"c35ceedd5b62467d99c3d0ea6371c35b\",\n          \"product_type\": \"income\",\n          \"status\": \"completed\",\n          \"suborder_number\": null,\n          \"created_at\": \"2026-11-18T16:34:31.356883Z\",\n          \"link_id\": \"453583850cfc4ff492c60090ed3ec12b\",\n          \"data_source\": \"payroll\",\n          \"provider\": {\n            \"logo_url\": \"https://d1uvo9h6rsmxet.cloudfront.net/provider_logos/adp.svg\",\n            \"id\": \"adp\",\n            \"name\": \"ADP\"\n          },\n          \"is_suspicious\": false,\n          \"was_attempted\": true\n        }\n      ],\n      \"insurance\": null,\n      \"financial_accounts\": null\n    }\n  ]\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Orders listed', function () {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});"
+                ]
+              }
             }
           ]
         }
