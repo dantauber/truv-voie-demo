@@ -180,6 +180,17 @@ LOAN_PURPOSES = [
     "Other",
 ]
 
+# Sample borrower prefilled on /apply to speed up demos.
+DEMO_APPLICANT = {
+    "amount": "30,000",
+    "term": "36",
+    "purpose": "Home improvement",
+    "first_name": "John",
+    "last_name": "Doe",
+    "email": "jdoe@gmail.com",
+    "phone": "510-555-1212",
+}
+
 
 @app.get("/")
 def home():
@@ -188,7 +199,7 @@ def home():
 
 @app.get("/apply")
 def apply_form():
-    return render_template("apply.html", purposes=LOAN_PURPOSES, form={}, error=None)
+    return render_template("apply.html", purposes=LOAN_PURPOSES, form=DEMO_APPLICANT, error=None)
 
 
 @app.post("/apply")
