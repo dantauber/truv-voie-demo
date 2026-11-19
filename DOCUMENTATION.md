@@ -6,7 +6,7 @@ a case study for a Truv Solutions Architect role, modeled on the Truv and nCino 
 Cedar & Stone Bank is a fictional lender. The prototype runs against the Truv sandbox.
 
 - Live demo: https://truv-voie-demo.onrender.com
-- Quick start: see `README.txt`
+- Quick start: see `README.md`
 
 ## Contents
 
@@ -546,6 +546,6 @@ requirements.txt        Pinned Python dependencies
 .python-version         3.13
 .env.example            Variable names with empty values
 test.sh                 curl check that creates an order
-README.txt              Quick start
+README.md               Quick start
 DOCUMENTATION.md        This document
 ```
