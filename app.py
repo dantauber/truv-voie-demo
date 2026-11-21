@@ -15,13 +15,14 @@ import hmac
 import json
 import logging
 import os
-import threading
 from datetime import datetime, timezone
 from pathlib import Path
 
 import requests
 from dotenv import load_dotenv
-from flask import Flask, abort, jsonify, redirect, render_template, request, url_for
+from flask import Flask, Response, abort, jsonify, redirect, render_template, request, url_for
+
+from store import get_store
 
 load_dotenv()
 
@@ -29,6 +30,11 @@ TRUV_BASE_URL = os.environ.get("TRUV_BASE_URL", "https://prod.truv.com/v1")
 TRUV_CLIENT_ID = os.environ.get("TRUV_CLIENT_ID", "")
 TRUV_SECRET = os.environ.get("TRUV_SECRET", "")
 BANK_NAME = os.environ.get("BANK_NAME", "Cedar & Stone Bank")
+# Optional site login (HTTP Basic Auth). Off unless both are set.
+DEMO_USER = os.environ.get("DEMO_USER", "")
+DEMO_PASSWORD = os.environ.get("DEMO_PASSWORD", "")
+# Set to 0 where the disk is read-only (AWS Lambda). Webhook payloads are also logged.
+SAVE_SAMPLES = os.environ.get("SAVE_SAMPLES", "1").strip() != "0"
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
@@ -42,55 +48,32 @@ app = Flask(__name__)
 
 
 # ---------------------------------------------------------------------------
-# Storage: in-memory, mirrored to a JSON file. Enough for a single-worker demo.
+# Storage: file backend (local, Render) or DynamoDB (Lambda). See store.py.
 # ---------------------------------------------------------------------------
 
-_lock = threading.Lock()
-_store = {"applications": {}, "user_index": {}, "unmatched_webhooks": []}
+store = get_store(STORE_FILE)
 
 
 def _now():
     return datetime.now(timezone.utc).isoformat()
 
 
-def _load_store():
-    global _store
-    if STORE_FILE.exists():
-        try:
-            _store = json.loads(STORE_FILE.read_text())
-        except (OSError, json.JSONDecodeError):
-            log.warning("Could not read %s, starting empty", STORE_FILE)
-
-
-def _save_store():
-    DATA_DIR.mkdir(exist_ok=True)
-    STORE_FILE.write_text(json.dumps(_store, indent=2))
-
-
 def _add_event(order_id, kind, label, detail=None):
     """Record a step in the application's timeline (shown in the developer panel)."""
-    with _lock:
-        appl = _store["applications"].get(order_id)
-        if appl is None:
-            return
-        appl["timeline"].append({"at": _now(), "kind": kind, "label": label, "detail": detail})
-        _save_store()
+    store.append_event(order_id, {"at": _now(), "kind": kind, "label": label, "detail": detail})
 
 
 def _get_application(order_id):
-    with _lock:
-        appl = _store["applications"].get(order_id)
-        return json.loads(json.dumps(appl)) if appl else None
+    return store.get_application(order_id)
 
 
 def _save_sample(name, body):
     """Save a real Truv payload for the Postman collection and the design doc."""
+    if not SAVE_SAMPLES:
+        return
     SAMPLES_DIR.mkdir(exist_ok=True)
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     (SAMPLES_DIR / f"{stamp}_{name}.json").write_text(json.dumps(body, indent=2))
-
-
-_load_store()
 
 
 # ---------------------------------------------------------------------------
@@ -162,6 +145,29 @@ def add_security_headers(resp):
     return resp
 
 
+# Site login. The webhook route is exempt because Truv cannot send a password; it is
+# protected by the X-WEBHOOK-SIGN signature check instead. /health stays open for uptime checks.
+LOGIN_EXEMPT_PATHS = {"/webhooks/truv", "/health"}
+
+
+def _credentials_match(auth):
+    if auth is None or auth.type != "basic":
+        return False
+    user_ok = hmac.compare_digest((auth.username or "").encode(), DEMO_USER.encode())
+    password_ok = hmac.compare_digest((auth.password or "").encode(), DEMO_PASSWORD.encode())
+    return user_ok and password_ok
+
+
+@app.before_request
+def require_demo_login():
+    if not (DEMO_USER and DEMO_PASSWORD) or request.path in LOGIN_EXEMPT_PATHS:
+        return None
+    if _credentials_match(request.authorization):
+        return None
+    return Response("Login required.", 401,
+                    {"WWW-Authenticate": 'Basic realm="Cedar & Stone demo", charset="UTF-8"'})
+
+
 @app.context_processor
 def inject_globals():
     return {"bank_name": BANK_NAME, "year": datetime.now().year}
@@ -228,21 +234,18 @@ def apply_submit():
 
     _save_sample("create_order_response", order)
     order_id = order["id"]
-    with _lock:
-        _store["applications"][order_id] = {
-            "order_id": order_id,
-            "user_id": order["user_id"],
-            "bridge_token": order["bridge_token"],
-            "applicant": {k: form[k] for k in ("first_name", "last_name", "email", "phone")},
-            "loan": {"amount": amount, "term": form["term"], "purpose": form["purpose"]},
-            "status": "verification_pending",
-            "order_status": None,
-            "created_at": _now(),
-            "timeline": [],
-            "webhooks": [],
-        }
-        _store["user_index"][order["user_id"]] = order_id
-        _save_store()
+    store.create_application({
+        "order_id": order_id,
+        "user_id": order["user_id"],
+        "bridge_token": order["bridge_token"],
+        "applicant": {k: form[k] for k in ("first_name", "last_name", "email", "phone")},
+        "loan": {"amount": amount, "term": form["term"], "purpose": form["purpose"]},
+        "status": "verification_pending",
+        "order_status": None,
+        "created_at": _now(),
+        "timeline": [],
+        "webhooks": [],
+    })
 
     log.info("Created Truv order %s for user %s", order_id, order["user_id"])
     _add_event(order_id, "api", "POST /v1/orders/ returned 201",
@@ -271,9 +274,7 @@ def bridge_event(order_id):
     source = str(data.get("source", ""))[:50]
     _add_event(order_id, "bridge", f"Bridge onEvent {event_type}" + (f" (source: {source})" if source else ""))
     if event_type == "COMPLETED" and source == "order" and appl["status"] != "verified":
-        with _lock:
-            _store["applications"][order_id]["status"] = "bridge_completed"
-            _save_store()
+        store.update_fields(order_id, status="bridge_completed")
     return jsonify(ok=True)
 
 
@@ -292,20 +293,15 @@ def review(order_id):
     _add_event(order_id, "api", "GET /v1/orders/{id}/ returned 200",
                {"employers": len(order.get("employers") or []), "verified": summary["verified"]})
     if summary["verified"]:
-        with _lock:
-            _store["applications"][order_id]["status"] = "verified"
-            _save_store()
+        store.update_fields(order_id, status="verified")
         appl["status"] = "verified"
     return render_template("review.html", appl=appl, summary=summary, order=order, error=None)
 
 
 @app.post("/apply/<order_id>/submit")
 def submit(order_id):
-    appl = _get_application(order_id) or abort(404)
-    with _lock:
-        _store["applications"][order_id]["status"] = "submitted"
-        _store["applications"][order_id]["submitted_at"] = _now()
-        _save_store()
+    _get_application(order_id) or abort(404)
+    store.update_fields(order_id, status="submitted", submitted_at=_now())
     _add_event(order_id, "app", "Application submitted to underwriting")
     return redirect(url_for("submitted", order_id=order_id))
 
@@ -417,26 +413,20 @@ def truv_webhook():
     event_type = event.get("event_type")
     user_id = event.get("user_id")
     _save_sample(f"webhook_{event_type or 'unknown'}", event)
-    # Render's disk is ephemeral, so also log the payload as one line to copy from the logs.
+    # Hosted disks are ephemeral or read-only, so also log the payload as one line to copy from the logs.
     # Webhook bodies carry IDs and statuses only, no credentials.
     log.info("WEBHOOK_SAMPLE %s", json.dumps(event, separators=(",", ":")))
 
-    with _lock:
-        order_id = _store["user_index"].get(user_id)
-        if order_id is None:
-            _store["unmatched_webhooks"].append({"at": _now(), "event": event})
-            _store["unmatched_webhooks"] = _store["unmatched_webhooks"][-50:]
-            _save_store()
-            log.info("Webhook %s for unknown user_id %s stored as unmatched", event_type, user_id)
-            return jsonify(ok=True)
-        appl = _store["applications"][order_id]
-        appl["webhooks"].append(event)
-        if event_type == "order-status-updated" and event.get("status"):
-            appl["order_status"] = event["status"]
-        elif event_type == "order-finalized":
-            # The whole order is terminal: no more data collection or refresh.
-            appl["order_finalized"] = True
-        _save_store()
+    fields = {}
+    if event_type == "order-status-updated" and event.get("status"):
+        fields["order_status"] = event["status"]
+    elif event_type == "order-finalized":
+        # The whole order is terminal: no more data collection or refresh.
+        fields["order_finalized"] = True
+    order_id = store.apply_webhook(user_id, event, fields)
+    if order_id is None:
+        log.info("Webhook %s for unknown user_id %s stored as unmatched", event_type, user_id)
+        return jsonify(ok=True)
 
     status = event.get("status")
     log.info("Webhook %s status=%s matched to order %s", event_type, status, order_id)
