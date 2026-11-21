@@ -1,0 +1,112 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: Cedar & Stone Bank, Truv VOIE demo on AWS Lambda (same Flask app as Render).
+
+Parameters:
+  TruvClientId:
+    Type: String
+    NoEcho: true
+  TruvSecret:
+    Type: String
+    NoEcho: true
+  DemoUser:
+    Type: String
+    Default: ""
+    NoEcho: true
+    Description: Site login user. Leave empty to turn the login off.
+  DemoPassword:
+    Type: String
+    Default: ""
+    NoEcho: true
+  WebAdapterLayerVersion:
+    Type: Number
+    Default: 30
+    Description: AWS Lambda Web Adapter layer version (see github.com/aws/aws-lambda-web-adapter).
+
+Resources:
+  ApplicationsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: order_id
+          AttributeType: S
+        - AttributeName: user_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: order_id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: user_id-index
+          KeySchema:
+            - AttributeName: user_id
+              KeyType: HASH
+          Projection:
+            ProjectionType: KEYS_ONLY
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+
+  WebFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: makefile
+    Properties:
+      CodeUri: ../../
+      Handler: run.sh
+      Runtime: python3.13
+      Architectures: [x86_64]
+      MemorySize: 512
+      Timeout: 30
+      Layers:
+        - !Sub arn:aws:lambda:${AWS::Region}:753240598075:layer:LambdaAdapterLayerX86:${WebAdapterLayerVersion}
+      Environment:
+        Variables:
+          AWS_LAMBDA_EXEC_WRAPPER: /opt/bootstrap
+          AWS_LWA_PORT: "8080"
+          AWS_LWA_READINESS_CHECK_PATH: /health
+          STORE_BACKEND: dynamodb
+          DYNAMODB_TABLE: !Ref ApplicationsTable
+          SAVE_SAMPLES: "0"
+          TRUV_CLIENT_ID: !Ref TruvClientId
+          TRUV_SECRET: !Ref TruvSecret
+          DEMO_USER: !Ref DemoUser
+          DEMO_PASSWORD: !Ref DemoPassword
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ApplicationsTable
+
+  # Public HTTPS URL. AuthType NONE because the app does its own login (DEMO_USER) and
+  # Truv must reach /webhooks/truv, which is protected by the X-WEBHOOK-SIGN signature.
+  WebFunctionUrl:
+    Type: AWS::Lambda::Url
+    Properties:
+      TargetFunctionArn: !GetAtt WebFunction.Arn
+      AuthType: NONE
+
+  # Since October 2025 a public function URL needs both of these permissions.
+  WebFunctionUrlPublicAccess:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref WebFunction
+      Action: lambda:InvokeFunctionUrl
+      Principal: "*"
+      FunctionUrlAuthType: NONE
+
+  WebFunctionInvokeViaUrl:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref WebFunction
+      Action: lambda:InvokeFunction
+      Principal: "*"
+      InvokedViaFunctionUrl: true
+
+Outputs:
+  SiteUrl:
+    Description: Open this in a browser.
+    Value: !GetAtt WebFunctionUrl.FunctionUrl
+  WebhookUrl:
+    Description: Register this with Truv for order-status-updated, task-status-updated and order-finalized.
+    Value: !Sub "${WebFunctionUrl.FunctionUrl}webhooks/truv"
+  TableName:
+    Value: !Ref ApplicationsTable

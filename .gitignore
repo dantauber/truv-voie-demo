@@ -17,3 +17,7 @@ CLAUDE.md
 # App runtime data
 data/
 samples/
+
+# AWS SAM build output and local deploy settings (can hold parameter values)
+.aws-sam/
+samconfig.toml
