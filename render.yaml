@@ -12,3 +12,8 @@ services:
         sync: false
       - key: TRUV_SECRET
         sync: false
+      # Optional site login. Leave both empty to turn it off.
+      - key: DEMO_USER
+        sync: false
+      - key: DEMO_PASSWORD
+        sync: false
