@@ -76,7 +76,7 @@ Resources:
         - DynamoDBCrudPolicy:
             TableName: !Ref ApplicationsTable
 
-  # Public HTTPS URL. AuthType NONE because the app does its own login (DEMO_USER) and
+  # Public HTTPS URL. AuthType NONE because the app has its own login page (DEMO_USER) and
   # Truv must reach /webhooks/truv, which is protected by the X-WEBHOOK-SIGN signature.
   WebFunctionUrl:
     Type: AWS::Lambda::Url

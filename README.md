@@ -47,7 +47,7 @@ All Truv API calls are outbound, so everything except webhooks works locally. To
 | `TRUV_SECRET` | Yes | Truv access secret. Also verifies webhook signatures. Never commit or log it. |
 | `TRUV_BASE_URL` | No | Default `https://prod.truv.com/v1`. Sandbox or production is decided by the keys. |
 | `BANK_NAME` | No | Default "Cedar & Stone Bank" |
-| `DEMO_USER`, `DEMO_PASSWORD` | No | Site login (HTTP Basic Auth). When both are set, every page asks for them except `/webhooks/truv` (protected by the Truv signature check) and `/health`. Leave empty to turn the login off. |
+| `DEMO_USER`, `DEMO_PASSWORD` | No | Site login page. When both are set, every page sends the visitor to `/login` first, and a signed session cookie keeps them logged in for 12 hours. Open without login: `/webhooks/truv` (protected by the Truv signature check), `/health`, `/robots.txt` and `/static/styles.css`. Nothing branded is shown before login. Leave either empty to turn the login off. Changing the password logs everyone out. |
 | `STORE_BACKEND` | No | `file` (default): memory plus `data/store.json`. `dynamodb`: a DynamoDB table, used on AWS Lambda. |
 | `DYNAMODB_TABLE` | With `dynamodb` | Table name. Set by the Lambda template. |
 | `SAVE_SAMPLES` | No | Default `1`: save real Truv payloads to `samples/`. Set to `0` on read-only disks (Lambda). |
@@ -91,7 +91,7 @@ The free service sleeps after about 15 minutes idle. To keep it awake, ping `htt
 `deploy/lambda/template.yaml` is an AWS SAM template. It creates:
 
 - A Python 3.13 Lambda function that runs the same gunicorn command as Render, through the [AWS Lambda Web Adapter](https://github.com/aws/aws-lambda-web-adapter) layer.
-- A public Function URL (HTTPS). The app's own login protects the pages.
+- A public Function URL (HTTPS). The app's own login page protects the pages. The app does not use HTTP Basic Auth because the Function URL renames the `WWW-Authenticate` response header, so browsers never show the Basic Auth prompt.
 - A DynamoDB table (on-demand billing) for applications, with a `user_id` index for webhook matching.
 
 Prerequisites: an AWS account, the [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) signed in (`aws configure` or `aws sso login`), the [AWS SAM CLI](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/install-sam-cli.html), and uv. Docker is not needed: the `Makefile` downloads Linux wheels with uv and copies only the app files, so `.env`, `.venv`, `data/` and `samples/` are never uploaded.

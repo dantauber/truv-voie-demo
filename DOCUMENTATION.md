@@ -358,9 +358,22 @@ a borrower-facing summary.
 | GET | `/apply/{order_id}/timeline` | JSON for the "Behind the scenes" panel |
 | POST | `/webhooks/truv` | Truv webhook receiver |
 | GET | `/health` | Health check for Render and uptime monitoring |
+| GET, POST | `/login` | Site login page (only when `DEMO_USER` and `DEMO_PASSWORD` are set) |
+| POST | `/logout` | Ends the login session |
+| GET | `/robots.txt` | Asks search engines not to crawl the site |
 
-Every response gets these security headers: the CSP above, `X-Content-Type-Options: nosniff`
-and `Referrer-Policy: strict-origin-when-cross-origin`.
+Every response gets these security headers: the CSP above, `X-Content-Type-Options: nosniff`,
+`Referrer-Policy: strict-origin-when-cross-origin` and `X-Robots-Tag: noindex, nofollow`.
+
+**Site login.** When `DEMO_USER` and `DEMO_PASSWORD` are both set, page requests without a
+login go to `/login?next=<path>`, and the JavaScript routes and any POST get a 401 JSON answer.
+`/webhooks/truv`, `/health`, `/robots.txt` and `/static/styles.css` stay open, so nothing
+branded is shown before login. A signed session cookie
+(Secure, HttpOnly, SameSite=Lax, 12 hours) keeps the visitor logged in. The cookie key is
+derived from the two login settings and the Truv secret, so every server instance agrees and
+changing the password logs everyone out. The login form has a CSRF token. The app uses a login
+page instead of HTTP Basic Auth because the AWS Lambda Function URL renames the
+`WWW-Authenticate` response header, so browsers never show the Basic Auth prompt.
 
 ## 9. Configuration, running and deployment
 
@@ -372,6 +385,7 @@ and `Referrer-Policy: strict-origin-when-cross-origin`.
 | `TRUV_SECRET` | Yes | Truv access secret. Also the webhook signing key. Never commit, log or send it to the browser. |
 | `TRUV_BASE_URL` | No | Default `https://prod.truv.com/v1` |
 | `BANK_NAME` | No | Default `Cedar & Stone Bank` |
+| `DEMO_USER`, `DEMO_PASSWORD` | No | Site login page. Leave either empty to turn the login off. |
 
 Locally, these are read from `.env`, which is ignored by git. `.env.example` lists the names
 with empty values. On Render, they are set in the dashboard.

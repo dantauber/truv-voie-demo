@@ -15,12 +15,16 @@ import hmac
 import json
 import logging
 import os
-from datetime import datetime, timezone
+import re
+import secrets
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from urllib.parse import quote, urlsplit
 
 import requests
 from dotenv import load_dotenv
-from flask import Flask, Response, abort, jsonify, redirect, render_template, request, url_for
+from flask import Flask, Response, abort, jsonify, redirect, render_template, request, session, url_for
+from flask.sessions import SecureCookieSessionInterface
 
 from store import get_store
 
@@ -30,7 +34,7 @@ TRUV_BASE_URL = os.environ.get("TRUV_BASE_URL", "https://prod.truv.com/v1")
 TRUV_CLIENT_ID = os.environ.get("TRUV_CLIENT_ID", "")
 TRUV_SECRET = os.environ.get("TRUV_SECRET", "")
 BANK_NAME = os.environ.get("BANK_NAME", "Cedar & Stone Bank")
-# Optional site login (HTTP Basic Auth). Off unless both are set.
+# Optional site login page (session cookie). Off unless both are set.
 DEMO_USER = os.environ.get("DEMO_USER", "")
 DEMO_PASSWORD = os.environ.get("DEMO_PASSWORD", "")
 # Set to 0 where the disk is read-only (AWS Lambda). Webhook payloads are also logged.
@@ -142,35 +146,136 @@ def add_security_headers(resp):
     resp.headers["Content-Security-Policy"] = CSP
     resp.headers["X-Content-Type-Options"] = "nosniff"
     resp.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    resp.headers["X-Robots-Tag"] = "noindex, nofollow"
     return resp
 
 
-# Site login. The webhook route is exempt because Truv cannot send a password; it is
-# protected by the X-WEBHOOK-SIGN signature check instead. /health stays open for uptime checks.
-LOGIN_EXEMPT_PATHS = {"/webhooks/truv", "/health"}
+# ---------------------------------------------------------------------------
+# Site login: a login page and a signed session cookie. HTTP Basic Auth does not work
+# behind the AWS Lambda Function URL, which renames the WWW-Authenticate header, so
+# browsers never show the prompt.
+# ---------------------------------------------------------------------------
+
+LOGIN_ENABLED = bool(DEMO_USER and DEMO_PASSWORD)
+
+# Same key on every instance and after cold starts; changing the demo password changes the
+# key, which logs everyone out. Never log or print it.
+app.secret_key = hmac.new(
+    TRUV_SECRET.encode(),
+    b"\0".join([b"cedar-stone-session-v1", DEMO_USER.encode(), DEMO_PASSWORD.encode()]),
+    hashlib.sha256,
+).hexdigest()
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+    PERMANENT_SESSION_LIFETIME=timedelta(hours=12),
+)
+
+LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1"}
 
 
-def _credentials_match(auth):
-    if auth is None or auth.type != "basic":
-        return False
-    user_ok = hmac.compare_digest((auth.username or "").encode(), DEMO_USER.encode())
-    password_ok = hmac.compare_digest((auth.password or "").encode(), DEMO_PASSWORD.encode())
-    return user_ok and password_ok
+class SessionInterface(SecureCookieSessionInterface):
+    """Secure cookies everywhere except local development over plain HTTP."""
+
+    def get_cookie_secure(self, app):
+        if os.environ.get("FLASK_DEBUG", "").strip().lower() in ("1", "true", "yes"):
+            return False
+        return urlsplit("//" + request.host).hostname not in LOCAL_HOSTS
+
+
+app.session_interface = SessionInterface()
+
+# The webhook route is exempt because Truv cannot log in; it is protected by the
+# X-WEBHOOK-SIGN signature check instead. /health stays open for uptime checks. Of the
+# static files only the stylesheet is open (the login page needs it), so nothing branded
+# is reachable before login.
+LOGIN_EXEMPT_PATHS = {"/login", "/health", "/webhooks/truv", "/robots.txt", "/static/styles.css"}
+# Routes called from JavaScript get a 401 JSON answer instead of a redirect.
+API_PATH_RE = re.compile(r"^/apply/[^/]+/(bridge-event|timeline)$")
+
+
+def _logged_in():
+    return bool(session.get("logged_in"))
+
+
+def _csrf_token():
+    if "csrf" not in session:
+        session["csrf"] = secrets.token_urlsafe(32)
+    return session["csrf"]
+
+
+def _safe_next(value):
+    """Only a relative path on this site; anything else falls back to /."""
+    if not isinstance(value, str) or not value.startswith("/") or value.startswith("//"):
+        return "/"
+    if "\\" in value or any(ord(c) < 32 or ord(c) == 127 for c in value):
+        return "/"
+    parts = urlsplit(value)
+    if parts.scheme or parts.netloc:
+        return "/"
+    return value
 
 
 @app.before_request
-def require_demo_login():
-    if not (DEMO_USER and DEMO_PASSWORD) or request.path in LOGIN_EXEMPT_PATHS:
+def require_login():
+    if not LOGIN_ENABLED or _logged_in():
         return None
-    if _credentials_match(request.authorization):
+    path = request.path
+    if path in LOGIN_EXEMPT_PATHS:
         return None
-    return Response("Login required.", 401,
-                    {"WWW-Authenticate": 'Basic realm="Cedar & Stone demo", charset="UTF-8"'})
+    if request.method not in ("GET", "HEAD") or API_PATH_RE.match(path):
+        return jsonify(error="login required"), 401
+    target = path + ("?" + request.query_string.decode("latin-1") if request.query_string else "")
+    return redirect("/login?next=" + quote(target, safe=""))
+
+
+def _render_login(error=None, status=200, next_path="/"):
+    return render_template("login.html", error=error, next_path=next_path), status
+
+
+@app.get("/login")
+def login_form():
+    next_path = _safe_next(request.args.get("next"))
+    if not LOGIN_ENABLED or _logged_in():
+        return redirect(next_path)
+    return _render_login(next_path=next_path)
+
+
+@app.post("/login")
+def login_submit():
+    next_path = _safe_next(request.form.get("next"))
+    if not LOGIN_ENABLED:
+        return redirect(next_path)
+    sent_token = request.form.get("csrf_token") or ""
+    expected_token = session.get("csrf") or ""
+    if not expected_token or not hmac.compare_digest(sent_token.encode(), expected_token.encode()):
+        return _render_login("Your session expired. Please try again.", 400, next_path)
+    user_ok = hmac.compare_digest((request.form.get("username") or "").encode(), DEMO_USER.encode())
+    password_ok = hmac.compare_digest((request.form.get("password") or "").encode(), DEMO_PASSWORD.encode())
+    if not (user_ok and password_ok):
+        return _render_login("Incorrect username or password", 401, next_path)
+    session.clear()  # new session on login
+    session.permanent = True
+    session["logged_in"] = True
+    session["csrf"] = secrets.token_urlsafe(32)
+    return redirect(next_path)
+
+
+@app.post("/logout")
+def logout():
+    session.clear()
+    return redirect("/login")
+
+
+@app.get("/robots.txt")
+def robots():
+    return Response("User-agent: *\nDisallow: /\n", mimetype="text/plain")
 
 
 @app.context_processor
 def inject_globals():
-    return {"bank_name": BANK_NAME, "year": datetime.now().year}
+    return {"bank_name": BANK_NAME, "year": datetime.now().year,
+            "login_enabled": LOGIN_ENABLED, "logged_in": _logged_in(), "csrf_token": _csrf_token}
 
 
 # ---------------------------------------------------------------------------
@@ -446,6 +551,8 @@ def health():
 
 @app.errorhandler(404)
 def not_found(_):
+    if LOGIN_ENABLED and not _logged_in():
+        return Response("Not found.", 404, mimetype="text/plain")  # no branding before login
     return render_template("error.html", message="We could not find that application."), 404
 
 
